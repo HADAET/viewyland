@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ document_type|title }} {{ document_no }} — Viewyland</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+</head>
+<body class="print-document-body">
+  <main class="print-document">
+    <header><div><p>VIEWYLAND</p><h1>{{ document_type|title }}</h1></div><button type="button" onclick="window.print()">Print {{ document_type }}</button></header>
+    <section class="print-meta"><div><span>{{ document_type|title }} no.</span><strong>{{ document_no }}</strong></div><div><span>Date</span><strong>{{ document_date }}</strong></div><div><span>Order no.</span><strong>{{ order.order_no }}</strong></div></section>
+    <section class="print-customer"><div><span>Billed to</span><strong>{{ order.customer_name_snapshot }}</strong><p>{{ order.customer_mobile_snapshot }}<br>{{ order.delivery_address or 'Address not provided' }}</p></div>{% if payment_type %}<div><span>Payment method</span><strong>{{ payment_type }}</strong></div>{% endif %}</section>
+    <table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>{% for line in lines %}<tr><td>{{ line.item_name_snapshot }}</td><td>{{ line.quantity }}</td><td>TK. {{ '%.2f'|format(line.unit_price) }}</td><td>TK. {{ '%.2f'|format(line.line_total) }}</td></tr>{% endfor %}</tbody></table>
+    <footer><span>Payable amount</span><strong>TK. {{ '%.2f'|format(order.payable_amount) }}</strong></footer>
+  </main>
+</body>
+</html>

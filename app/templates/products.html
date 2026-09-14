@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Shop all — Viewyland{% endblock %}
+{% block content %}
+<!--<section class="catalogue-hero">
+  <p class="eyebrow">The Viewyland collection</p>
+  <h1>Objects worth<br><em>looking for.</em></h1>
+  <p>Vintage-inspired showpieces, thoughtfully selected for the rooms you call home.</p>
+</section> -->
+<section class="catalogue content-section">
+  <form class="catalogue-tools" method="get" action="/products">
+    <label class="search-field"><span>⌕</span><input name="q" value="{{ search_query }}" placeholder="Search the collection"></label>
+    {% if search_query %}<a class="clear-filter" href="/products">Clear search</a>{% endif %}
+  </form>
+  <div class="catalogue-layout">
+    <aside class="catalogue-sidebar"><p class="filter-label">Browse collection</p><a class="{% if not selected_category %}selected{% endif %}" href="/products">All showpieces</a>{% for category in categories %}<a class="{% if selected_category == category.name %}selected{% endif %}" href="/products?category={{ category.name|urlencode }}">{{ category.name }}</a>{% endfor %}</aside>
+    <div><div class="catalogue-result"><p>{{ products|length }} piece{% if products|length != 1 %}s{% endif %} found{% if selected_category %} in {{ selected_category }}{% endif %}</p></div>{% if products %}<div class="product-grid catalogue-grid">{% for product in products %}{% include 'components/product_card.html' %}{% endfor %}</div>{% else %}<div class="empty-state"><p class="eyebrow">No pieces found</p><h2>That treasure has moved on.</h2><p>Try a different search or explore the full Viewyland collection.</p><a class="button button-dark" href="/products">Explore all pieces <span>→</span></a></div>{% endif %}</div>
+  </div>
+</section>
+{% endblock %}

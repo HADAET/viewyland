@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Shopping bag &mdash; Viewyland{% endblock %}
+{% block content %}
+<section class="cart-page content-section">
+  <p class="eyebrow">Your selections</p>
+  <h1>Shopping bag.</h1>
+  {% if lines %}
+    <div class="cart-list">{% for line in lines %}<article class="cart-line" data-cart-line="{{ line.product.id }}"><div class="cart-line-art {{ line.product.tone }}"><div class="object {{ line.product.type }}"><i></i><b></b><em></em></div></div><div><h2>{{ line.product.name }}</h2><p>{{ line.product.description }}</p><div class="cart-quantity"><button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity">&minus;</button><span>Qty {{ line.quantity }}</span><button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity">+</button><button class="cart-remove" type="button" data-cart-change="{{ line.product.id }}" data-quantity="0">Remove</button></div></div><strong>{{ line.product.currency }} {{ '%.2f'|format(line.total) }}</strong></article>{% endfor %}</div>
+    <div class="cart-summary"><span>Total</span><strong>{{ lines[0].product.currency }} {{ '%.2f'|format(total) }}</strong><a class="button button-light" href="/products">Continue shopping <span>&rarr;</span></a><button class="button button-dark" type="button" data-confirm-open>Confirm order <span>&rarr;</span></button></div>
+    <form class="order-login" data-confirm-form hidden><div><p class="eyebrow">{% if customer %}Ready to order{% else %}Login or register{% endif %}</p><h2>Almost yours.</h2><p>{% if customer %}You are logged in as {{ customer.customer_name }}. Confirm your delivery details to place the order.{% else %}Enter your name and mobile number to register and confirm this order.{% endif %}</p></div><label>Name<input name="customer_name" required minlength="2" value="{{ customer.customer_name if customer else '' }}" placeholder="Your full name"></label><label>Mobile number<input name="mobile_no" required minlength="7" value="{{ customer.mobile_no if customer else '' }}" placeholder="01XXXXXXXXX"></label><label>Delivery address <span>(optional)</span><input name="address" value="{{ customer.present_address if customer else '' }}" placeholder="Your delivery address"></label><button class="button button-dark" type="submit">Confirm order <span>&rarr;</span></button><p class="order-message" data-order-message role="status"></p></form>
+  {% else %}
+    <div class="empty-state"><h2>Your bag is waiting.</h2><p>Add a considered piece from the collection to get started.</p><a class="button button-dark" href="/products">Explore products <span>&rarr;</span></a></div>
+  {% endif %}
+</section>
+{% endblock %}

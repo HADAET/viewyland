@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}My Profile — Viewyland{% endblock %}
+{% block content %}
+<section class="profile-page content-section">
+  {% if customer %}
+  <div class="profile-container">
+    <aside class="profile-sidebar">
+      <div class="profile-card profile-summary-card">
+        <div class="profile-avatar" data-profile-avatar>
+          {% if customer.profile_image %}
+            <img src="{{ customer.profile_image }}" alt="{{ customer.customer_name }}">
+          {% else %}
+            <span>{{ customer.customer_name[:1]|upper }}</span>
+          {% endif %}
+        </div>
+        <h1 class="profile-name">{{ customer.customer_name }}</h1>
+        <p class="profile-mobile">{{ customer.mobile_no }}</p>
+        <p class="profile-email">{{ customer.email or 'No email added' }}</p>
+        <dl class="profile-details">
+          <div><dd>{{ orders|length }}</dd><dt>Total orders</dt></div>
+          <div><dd>{{ customer.created_on[:10] }}</dd><dt>Member since</dt></div>
+        </dl>
+      </div>
+      <nav class="profile-navigation" aria-label="Profile navigation">
+        <button type="button" class="is-active" data-profile-tab="overview">Profile details</button>
+        <button type="button" data-profile-tab="orders">Order history</button>
+        <button type="button" data-profile-tab="settings">Account settings</button>
+      </nav>
+      <button class="profile-logout" type="button" data-logout>Log out</button>
+    </aside>
+    <main class="profile-main">
+      <section class="profile-panel is-active" data-profile-panel="overview">
+        <header class="profile-main-header"><div><h2>Profile details</h2><p>Everything we use to personalise your Viewyland experience.</p></div></header>
+        <div class="profile-read-grid"><div><span>Full name</span><strong>{{ customer.customer_name }}</strong></div><div><span>Mobile number</span><strong>{{ customer.mobile_no }}</strong></div><div><span>Email address</span><strong>{{ customer.email or 'Not added' }}</strong></div><div><span>Delivery address</span><strong>{{ customer.present_address or 'Not added' }}</strong></div></div>
+      </section>
+      <section class="profile-panel" data-profile-panel="orders" hidden>
+        <header class="profile-main-header"><div><h2>Order history</h2><p>Check the status of your recent orders.</p></div><input type="search" data-order-search placeholder="Search orders..."></header>
+        <div class="order-history">
+        {% for order in orders %}
+        <article class="profile-order" data-order-row>
+          <header class="order-card-header"><div><strong>{{ order.order_no }}</strong><span>{{ order.created_on[:16].replace('T', ' ') }} &middot; {{ order.lines|length }} item{% if order.lines|length != 1 %}s{% endif %}</span></div><span class="order-status status-{{ order.order_status|lower }}">{{ order.order_status }}</span><b>TK. {{ '%.2f'|format(order.payable_amount) }}</b></header>
+          <div class="order-line-list">{% for line in order.lines %}<a class="order-line" href="{{ url_for('product_detail', item_no=line.item_no) }}"><div class="order-line-art {{ line.display_tone or 'sand' }}">{% if line.image_url %}<img src="{{ line.image_url }}" alt="{{ line.item_name_snapshot }}">{% else %}<div class="object {{ line.display_type or 'vase' }}"><i></i><b></b><em></em></div>{% endif %}</div><div class="order-line-copy"><strong>{{ line.item_name_snapshot }}</strong><span>Quantity {{ line.quantity }} &middot; TK. {{ '%.2f'|format(line.unit_price) }} each</span></div><b>TK. {{ '%.2f'|format(line.line_total) }}</b></a>{% else %}<p class="order-empty-line">No item lines were found for this order.</p>{% endfor %}</div>
+        </article>
+        {% else %}
+        <div class="profile-empty">
+          <p>No orders yet.</p>
+          <a href="/products">Explore the collection &rarr;</a>
+        </div>
+        {% endfor %}
+        </div>
+      </section>
+      <section class="profile-panel" data-profile-panel="settings" hidden>
+        <header class="profile-main-header"><div><h2>Account settings</h2><p>Update your profile photo and personal information.</p></div></header>
+        <section class="settings-block"><h3>Profile photo</h3><div class="settings-image-row"><div class="profile-avatar profile-avatar-small" data-profile-avatar>{% if customer.profile_image %}<img src="{{ customer.profile_image }}" alt="{{ customer.customer_name }}">{% else %}<span>{{ customer.customer_name[:1]|upper }}</span>{% endif %}</div><div class="image-upload-form"><label class="image-upload-button">Choose photo<input data-profile-image-input name="image" type="file" accept="image/jpeg,image/png,image/webp" capture="user"></label><p class="upload-hint" data-image-upload-hint>JPG, PNG or WebP, maximum 5 MB.</p></div></div></section>
+        <section class="settings-block"><h3>Personal information</h3><form data-profile-form class="profile-form"><label>Full name<input name="customer_name" required minlength="2" value="{{ customer.customer_name }}"></label><label>Mobile number<input name="mobile_no" required minlength="7" value="{{ customer.mobile_no }}"><small>Must be unique to your account.</small></label><label>Email address<input name="email" type="email" value="{{ customer.email or '' }}" placeholder="you@example.com"></label><label class="profile-wide">Delivery address<input name="address" value="{{ customer.present_address or '' }}" placeholder="Your delivery address"></label><input name="profile_image" type="hidden" value="{{ customer.profile_image or '' }}"><button class="button button-dark" type="submit">Save changes <span>&rarr;</span></button></form></section>
+      </section>
+      <p class="auth-message profile-message" data-auth-message role="status"></p>
+    </main>
+  </div>
+  {% else %}
+  <!-- Login/Register Section -->
+  <div class="auth-intro">
+    <p class="eyebrow">Your Viewyland account</p>
+    <h1>Shop with<br><em>confidence.</em></h1>
+    <p>Register once with your mobile number to keep your details ready for every order.</p>
+  </div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button type="button" class="is-active" data-auth-tab="login">Login</button>
+      <button type="button" data-auth-tab="register">Register</button>
+    </div>
+    <form data-auth-form="login">
+      <p class="eyebrow">Welcome back</p>
+      <h2>Login</h2>
+      <label>Mobile number<input name="mobile_no" required minlength="7" placeholder="01XXXXXXXXX"></label>
+      <button class="button button-dark" type="submit">Login <span>&rarr;</span></button>
+    </form>
+    <form data-auth-form="register" hidden>
+      <p class="eyebrow">New to Viewyland</p>
+      <h2>Create account</h2>
+      <label>Full name<input name="customer_name" required minlength="2" placeholder="Your full name"></label>
+      <label>Mobile number<input name="mobile_no" required minlength="7" placeholder="01XXXXXXXXX"></label>
+      <label>Address <span>(optional)</span><input name="address" placeholder="Your delivery address"></label>
+      <button class="button button-dark" type="submit">Register <span>&rarr;</span></button>
+    </form>
+    <p class="auth-message" data-auth-message role="status"></p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='js/auth.js') }}" defer></script>
+{% endblock %}

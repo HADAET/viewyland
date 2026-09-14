@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Viewyland &mdash; Online shopping for considered homes{% endblock %}
+{% block content %}
+<div class="marketplace-page">
+  <section class="market-utility"><span>Free delivery on qualifying orders</span><span>Authentic Viewyland pieces</span><span>Easy returns within 7 days</span></section>
+  <section class="market-header">
+    <a class="market-logo" href="/">VIEWYLAND<span>.</span><small>com</small></a>
+    <form class="market-search" action="/products" method="get"><input name="q" placeholder="Search for clocks, lamps, mirrors..." aria-label="Search products"><button type="submit" aria-label="Search">⌕</button></form>
+    <a class="market-account" href="/auth"><span>♙</span><small>{% if customer %}Hello, {{ customer.customer_name }}<br><b>My account</b>{% else %}Welcome to Viewyland<br><b>Sign in / Register</b>{% endif %}</small></a>
+    <a class="market-cart" href="/cart" aria-label="Shopping bag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>{% include 'components/cart_badge.html' %}</a>
+  </section>
+  <nav class="market-nav"><a href="/products">Categories</a>{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}">{{ category.name }}</a>{% endfor %}<a href="/products?q=new">New arrivals</a><a href="/products?q=sale">Deals</a></nav>
+  <section class="market-hero">
+    <aside class="market-category-menu"><h2>Shop by category</h2>{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}"><span class="category-icon {{ category.icon }}"><i></i><b></b></span>{{ category.name }}<strong>&rsaquo;</strong></a>{% endfor %}<a class="all-categories" href="/products">All categories &rsaquo;</a></aside>
+    <div class="market-banner" data-banner-rotator>{% for banner in banners %}<div class="market-banner-slide {% if loop.first %}is-active{% endif %}" data-banner-slide="{{ loop.index0 }}"><div><p class="eyebrow">{{ banner.eyebrow }}</p><h1>{{ banner.title }}</h1><p>{{ banner.copy }}</p><a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a></div><div class="banner-art {{ banner.tone }}"><div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div></div></div>{% endfor %}<div class="banner-dots">{% for banner in banners %}<button type="button" data-banner-dot="{{ loop.index0 }}" aria-label="Show banner {{ loop.index }}"></button>{% endfor %}</div></div>
+  </section>
+  {% if flash_products %}<section class="market-section flash-section"><div class="market-section-heading"><h2>Flash sale</h2><span>Limited-time offers</span><a href="/products">Shop all &rsaquo;</a></div><div class="market-product-grid flash-grid">{% for product in flash_products %}{% include 'components/product_card.html' %}{% endfor %}</div></section>{% endif %}
+  <section class="market-section category-section"><div class="market-section-heading"><h2>Explore popular categories</h2><a href="/products">View all &rsaquo;</a></div><div class="market-category-grid">{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}"><span class="category-icon {{ category.icon }}"><i></i><b></b></span><strong>{{ category.name }}</strong><small>Shop now &rsaquo;</small></a>{% endfor %}</div></section>
+  <section class="market-section recommendations" id="featured"><div class="market-section-heading"><h2>Just for you</h2><a href="/products">View all products &rsaquo;</a></div><div class="market-product-grid recommendation-grid">{% for product in market_products %}{% include 'components/product_card.html' %}{% endfor %}</div></section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='js/home.js') }}" defer></script>{% endblock %}

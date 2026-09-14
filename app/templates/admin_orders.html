@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Order Management — Viewyland{% endblock %}
+{% block content %}
+<main class="db-admin">
+  <aside class="db-sidebar">
+    <a class="db-brand" href="/admin"><span>⌘</span> VIEWYLAND ADMIN</a>
+    <div class="db-admin-user"><span>●</span><div><strong>Administrator</strong><small>Operations access</small></div></div>
+    <p class="db-sidebar-label">Operations</p>
+    <nav class="db-table-nav"><a href="/admin"><span>▤</span>Database tables</a><a class="is-active" href="/admin/orders"><span>▣</span>Order management</a></nav>
+    <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
+  </aside>
+  <section class="db-content">
+    <header class="db-topbar"><div><a href="/admin">Dashboard</a><span>/</span><b>Order Management</b></div><nav class="db-top-actions"><a href="/admin">Database</a><span class="db-admin-chip">Administrator</span></nav></header>
+    <div class="db-title-row"><div><p>OPERATIONS</p><h1>Order Management</h1><span>Review customer orders, update delivery status, and print financial documents.</span></div></div>
+    <section class="order-management-list">{% for order in orders %}<article class="admin-order-card"><header><div><strong>{{ order.order_no }}</strong><span>{{ order.created_on[:16].replace('T', ' ') }} · {{ order.customer_name_snapshot }} · {{ order.customer_mobile_snapshot }}</span></div><span class="order-status status-{{ order.order_status|lower }}">{{ order.order_status }}</span><b>TK. {{ '%.2f'|format(order.payable_amount) }}</b></header><div class="admin-order-lines">{% for line in order.lines %}<div><span>{{ line.item_name_snapshot }}</span><small>{{ line.item_no }} · Qty {{ line.quantity }} · TK. {{ '%.2f'|format(line.unit_price) }}</small><strong>TK. {{ '%.2f'|format(line.line_total) }}</strong></div>{% endfor %}</div><footer><form method="post" action="/admin/orders/{{ order.order_no }}/status"><label>Order status<select name="order_status"><option {% if order.order_status == 'PENDING' %}selected{% endif %}>PENDING</option><option {% if order.order_status == 'CONFIRMED' %}selected{% endif %}>CONFIRMED</option><option {% if order.order_status == 'PROCESSING' %}selected{% endif %}>PROCESSING</option><option {% if order.order_status == 'SHIPPED' %}selected{% endif %}>SHIPPED</option><option {% if order.order_status == 'DELIVERED' %}selected{% endif %}>DELIVERED</option><option {% if order.order_status == 'CANCELLED' %}selected{% endif %}>CANCELLED</option></select></label><button class="db-primary" type="submit">Update status</button></form><div class="order-print-actions"><a href="/admin/orders/{{ order.order_no }}/invoice" target="_blank">Print invoice</a><a href="/admin/orders/{{ order.order_no }}/receipt" target="_blank">Print receipt</a></div></footer></article>{% else %}<div class="db-notice">There are no customer orders yet.</div>{% endfor %}</section>
+  </section>
+</main>
+{% endblock %}

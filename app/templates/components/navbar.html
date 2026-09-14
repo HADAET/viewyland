@@ -1,0 +1,16 @@
+<header class="site-header">
+  <div class="announcement">Free delivery within Malaysia on qualifying orders <span>✦</span> Curated vintage finds, delivered with care</div>
+  <nav class="nav-wrap" aria-label="Main navigation">
+    <a class="brand" href="/">VIEWYLAND<span>.</span></a>
+    <div class="nav-links">
+      <a class="active" href="/">Shop all</a>
+      <a href="#collections">Shop by collection</a>
+      <a href="#our-story">Our story</a>
+    </div>
+    <div class="nav-actions">
+      <button class="icon-button" type="button" data-search-toggle aria-label="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.2 4.2"/></svg></button>
+      <a class="cart-link" href="/cart" aria-label="Shopping bag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>{% include 'components/cart_badge.html' %}</a>
+    </div>
+  </nav>
+  <form class="nav-search" data-search-form action="/products" method="get"><span class="nav-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.2 4.2"/></svg></span><label for="nav-search-input">Search products</label><input id="nav-search-input" name="q" placeholder="What are you looking for?" autocomplete="off"><button type="submit" aria-label="Submit search">Search <span>&rarr;</span></button></form>
+</header>

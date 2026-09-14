@@ -1,0 +1,8 @@
+<article class="product-card">
+  <div class="product-art {{ product.tone }}">
+    {% if product.tag %}<span class="product-tag">{{ product.tag }}</span>{% endif %}
+    <a class="product-art-link" href="{{ url_for('product_detail', item_no=product.id) }}" aria-label="View {{ product.name }}"><div class="object {{ product.type }}" aria-hidden="true"><i></i><b></b><em></em></div></a>
+    <button class="quick-add" type="button" data-add-to-cart="{{ product.id }}" aria-label="Add {{ product.name }} to bag">+</button>
+  </div>
+  <div class="product-info"><div><h3><a href="{{ url_for('product_detail', item_no=product.id) }}">{{ product.name }}</a></h3><p>{{ product.description or 'Curated showpiece for a considered home.' }}</p><div class="price-row"><strong class="main-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</strong>{% if product.previous_price and product.previous_price > product.price %}<span class="previous-price">{{ product.currency }} {{ '%.2f'|format(product.previous_price) }}</span>{% endif %}</div></div></div>
+</article>

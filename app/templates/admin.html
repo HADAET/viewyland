@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Database admin — Viewyland{% endblock %}
+{% block content %}
+<main class="db-admin">
+  <aside class="db-sidebar">
+    <a class="db-brand" href="/admin"><span>⌘</span> VIEWYLAND ADMIN</a>
+    <div class="db-admin-user"><span>●</span><div><strong>Administrator</strong><small>Database access</small></div></div>
+    <p class="db-sidebar-label">Database tables</p>
+    <nav class="db-table-nav" aria-label="Database tables">
+      {% for table in tables %}<a class="{% if selected_table == table %}is-active{% endif %}" href="/admin?table={{ table }}"><span>▤</span>{{ table }}<b>{{ table_counts[table] }}</b></a>{% endfor %}
+    </nav>
+    <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
+  </aside>
+  <section class="db-content">
+    <header class="db-topbar"><div><a href="/admin">Dashboard</a><span>/</span><strong>Database</strong><span>/</span><b>{{ selected_table }}</b></div><nav class="db-top-actions"><a href="/admin/orders">Order Management</a><span class="db-admin-chip">Administrator</span></nav></header>
+    <div class="db-title-row"><div><p>DATABASE TABLE</p><h1>{{ selected_table }}</h1><span>{{ rows|length }} row{% if rows|length != 1 %}s{% endif %} shown</span></div>{% if not read_only %}<button class="db-primary" type="button" data-row-editor data-mode="add" data-table="{{ selected_table }}" data-action="/admin/tables/{{ selected_table }}/rows" data-columns='{{ columns|tojson }}'>+ Add row</button>{% endif %}</div>
+    {% if read_only %}<div class="db-notice">Products is a read-only catalog view built from <code>bus_item_master</code> and <code>bus_price_list</code>.</div>{% endif %}
+    <section class="db-table-wrap"><table class="db-table"><thead><tr>{% for column in columns %}<th>{{ column.name }}<small>{{ column.type }}</small></th>{% endfor %}{% if not read_only %}<th class="db-actions">Actions</th>{% endif %}</tr></thead><tbody>{% for row in rows %}<tr>{% for column in columns %}<td title="{{ row[column.name] }}">{{ row[column.name] if row[column.name] is not none else '—' }}</td>{% endfor %}{% if not read_only %}<td class="db-row-actions"><button type="button" data-row-editor data-mode="edit" data-table="{{ selected_table }}" data-action="/admin/tables/{{ selected_table }}/rows/{{ row._rowid_ }}" data-columns='{{ columns|tojson }}' data-row='{{ row|tojson }}'>Edit</button><form method="post" action="/admin/tables/{{ selected_table }}/rows/{{ row._rowid_ }}/delete" onsubmit="return confirm('Delete this row?');"><button type="submit">Delete</button></form></td>{% endif %}</tr>{% else %}<tr><td class="db-empty" colspan="{{ columns|length + 1 }}">No rows in this table yet.</td></tr>{% endfor %}</tbody></table></section>
+  </section>
+</main>
+<dialog class="db-dialog" data-row-dialog><form method="post" enctype="multipart/form-data" data-row-form><header><div><p>TABLE EDITOR</p><h2 data-row-title>Update row</h2></div><button type="button" data-dialog-close aria-label="Close">×</button></header><div class="db-row-fields" data-row-fields></div><footer><button type="button" class="db-secondary" data-dialog-close>Cancel</button><button type="submit" class="db-primary">Save row</button></footer></form></dialog>
+<script>
+window.viewylandAdminItems = {{ items|tojson }};
+window.viewylandAdminCategories = {{ categories|tojson }};
+window.viewylandAdminStores = {{ stores|tojson }};
+window.viewylandAdminCustomers = {{ customers|tojson }};
+</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='js/admin.js') }}" defer></script>{% endblock %}
