@@ -1,3 +1,4 @@
+from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
@@ -7,7 +8,9 @@ from app.routers.auth import AUTH_COOKIE
 from app.services.order_service import get_customer_by_registration
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+#templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 BANNERS = [
     {"eyebrow": "The Viewyland home edit", "title": "Make space for something beautiful.", "copy": "Collected objects, everyday essentials and special finds for your home.", "tone": "peach"},

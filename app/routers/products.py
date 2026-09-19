@@ -1,3 +1,4 @@
+from pathlib import Path
 from fastapi import APIRouter, Query, Request
 from fastapi.templating import Jinja2Templates
 
@@ -5,7 +6,8 @@ from app.services.product_service import get_categories, get_product, get_produc
 from app.services.cart_service import COOKIE_NAME, cart_count
 
 router = APIRouter(prefix="/products", tags=["products"])
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 @router.get("", name="products")

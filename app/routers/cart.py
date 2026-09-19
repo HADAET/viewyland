@@ -1,3 +1,4 @@
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -8,7 +9,8 @@ from app.routers.auth import AUTH_COOKIE
 from app.services.order_service import OrderError, confirm_order, create_order, get_customer_by_registration, register_customer
 
 router = APIRouter(prefix="/cart", tags=["cart"])
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 class CartItemPayload(BaseModel):

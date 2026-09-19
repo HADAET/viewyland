@@ -1,4 +1,5 @@
 from pathlib import Path
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
@@ -10,7 +11,8 @@ from app.db.database import get_connection
 from app.services.order_service import OrderError, get_customer_by_mobile, get_customer_by_registration, register_customer
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 AUTH_COOKIE = "viewyland_customer"
 PROFILE_UPLOAD_DIR = Path("app/static/uploads/profiles")
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}

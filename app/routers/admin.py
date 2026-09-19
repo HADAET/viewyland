@@ -1,3 +1,4 @@
+from pathlib import Path
 import hashlib
 import hmac
 import os
@@ -13,7 +14,8 @@ from fastapi.templating import Jinja2Templates
 
 from app.db.database import get_connection
 router = APIRouter(prefix="/admin", tags=["admin"])
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 ADMIN_COOKIE = "viewyland_admin"
 ADMIN_PASSWORD = os.getenv("VIEWYLAND_ADMIN_PASSWORD", "change-me")
 ITEM_IMAGE_UPLOAD_DIR = Path("app/static/uploads/items")
