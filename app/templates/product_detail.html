@@ -1,7 +1,48 @@
 {% extends 'base.html' %}
 {% block title %}{{ product.name }} &mdash; Viewyland{% endblock %}
 {% block content %}
-<section class="product-detail"><a class="back-link" href="/products">&larr; Back to collection</a><div class="detail-gallery"><div class="detail-art {{ product.tone }}" data-gallery-main><div class="object {{ product.type }}"><i></i><b></b><em></em></div>{% if product.images %}<img src="{{ product.images[0].url }}" alt="{{ product.images[0].alt or product.name }}" data-gallery-image>{% endif %}</div>{% if product.images %}<div class="gallery-thumbs">{% for image in product.images %}<button type="button" data-gallery-thumb="{{ image.url }}" aria-label="View image {{ loop.index }}"><img src="{{ image.url }}" alt="{{ image.alt or product.name }}"></button>{% endfor %}</div>{% endif %}</div><div class="detail-copy"><p class="eyebrow">{{ product.category }}</p><h1>{{ product.name }}</h1><p class="detail-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</p><p>{{ product.description }}</p><p class="detail-id">Item no. {{ product.id }} &middot; Curated in Malaysia</p><button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to bag <span>&rarr;</span></button></div></section>
-{% if product.images %}<div class="image-lightbox" data-image-lightbox hidden><button type="button" data-lightbox-close aria-label="Close image">&times;</button><img src="{{ product.images[0].url }}" alt="{{ product.name }}" data-lightbox-image></div>{% endif %}
-{% block scripts %}<script src="/static/js/gallery.js" defer></script>{% endblock %}
+<section class="product-detail">
+    <a class="back-link" href="/products">&larr; Back to collection</a>
+    
+    <div class="detail-gallery">
+        <!-- Omit tone class if real images exist, otherwise keep it for the shape background -->
+        <div class="detail-art {% if not product.images %}{{ product.tone }}{% endif %}" data-gallery-main>
+            {% if product.images %}
+                <img src="{{ product.images[0].url }}" alt="{{ product.images[0].alt or product.name }}" data-gallery-image>
+            {% else %}
+                <div class="object {{ product.type }}"><i></i><b></b><em></em></div>
+            {% endif %}
+        </div>
+
+        {% if product.images %}
+            <div class="gallery-thumbs">
+                {% for image in product.images %}
+                    <button type="button" data-gallery-thumb="{{ image.url }}" aria-label="View image {{ loop.index }}">
+                        <img src="{{ image.url }}" alt="{{ image.alt or product.name }}">
+                    </button>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="detail-copy">
+        <p class="eyebrow">{{ product.category }}</p>
+        <h1>{{ product.name }}</h1>
+        <p class="detail-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</p>
+        <p>{{ product.description }}</p>
+        <p class="detail-id">Item no. {{ product.id }} &middot; Curated in Malaysia</p>
+        <button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to bag <span>&rarr;</span></button>
+    </div>
+</section>
+
+{% if product.images %}
+    <div class="image-lightbox" data-image-lightbox hidden>
+        <button type="button" data-lightbox-close aria-label="Close image">&times;</button>
+        <img src="{{ product.images[0].url }}" alt="{{ product.name }}" data-lightbox-image>
+    </div>
+{% endif %}
+
+{% block scripts %}
+<script src="/static/js/gallery.js" defer></script>
+{% endblock %}
 {% endblock %}
