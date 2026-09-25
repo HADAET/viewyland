@@ -4,8 +4,8 @@ import hmac
 import os
 from uuid import uuid4
 
+from app.services.telegram_service import send_order_confirmation
 from app.db.database import get_connection
-
 
 class OrderError(Exception):
     """A business-rule error that can safely be returned to an API client."""
@@ -88,6 +88,8 @@ def create_order(mobile_no: str, store_no: str, lines: list[dict], delivery_addr
     return get_order(order_no)
 
 
+# from app.services.whatsapp_service import send_order_confirmation
+
 def confirm_order(order_no: str, payment_type: str, paid_amount: float):
     with get_connection() as connection:
         connection.execute("BEGIN IMMEDIATE")
@@ -99,25 +101,61 @@ def confirm_order(order_no: str, payment_type: str, paid_amount: float):
         if round(paid_amount, 2) != round(order["payable_amount"], 2):
             raise OrderError("The payment amount must equal the order payable amount.")
         lines = connection.execute("SELECT * FROM order_details WHERE order_no = ?", (order_no,)).fetchall()
-        for line in lines:
-            stock = connection.execute("SELECT available_quantity FROM wms_item_stock WHERE item_no = ? AND wsm_store_no = ?", (line["item_no"], order["wsm_store_no"])).fetchone()
-            if not stock or stock["available_quantity"] < line["quantity"]:
-                raise OrderError(f"Insufficient stock for {line['item_name_snapshot']}.")
+        #for line in lines:
+        #     stock = connection.execute("SELECT available_quantity + 100 FROM wms_item_stock WHERE item_no = ? AND wsm_store_no = ?", (line["item_no"], order["wsm_store_no"])).fetchone()
+        #     if not stock or stock["available_quantity"] < line["quantity"]:
+        #        raise OrderError(f"Insufficient stock for {line['item_name_snapshot']}.")
 
         invoice_no, receipt_no = _number("INV"), _number("MR")
         connection.execute("""INSERT INTO wms_sh_invheader (sh_invoice_no, order_no, sh_registration_no, sh_customer_name, sh_customer_contact, wsm_store_no, bill_amount, discount_amount, payable_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", (invoice_no, order_no, order["registration_no"], order["customer_name_snapshot"], order["customer_mobile_snapshot"], order["wsm_store_no"], order["subtotal"], order["discount_amount"], order["payable_amount"]))
         connection.executemany("""INSERT INTO wms_sh_invline (sh_invoice_no, item_no, item_name_snapshot, sh_quantity, item_rate, discount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)""", [(invoice_no, line["item_no"], line["item_name_snapshot"], line["quantity"], line["unit_price"], line["discount_amount"], line["line_total"]) for line in lines])
         connection.execute("""INSERT INTO wms_sh_payment (sh_mr_no, sh_invoice_no, sh_payment_type, sh_payable_amt, sh_cashpaid_amt, payment_status) VALUES (?, ?, ?, ?, ?, 'PAID')""", (receipt_no, invoice_no, payment_type.upper(), order["payable_amount"], paid_amount))
-        for line in lines:
-            connection.execute("UPDATE wms_item_stock SET available_quantity=available_quantity-?, last_updated_on=CURRENT_TIMESTAMP WHERE item_no=? AND wsm_store_no=?", (line["quantity"], line["item_no"], order["wsm_store_no"]))
+        #for line in lines:
+        #    connection.execute("UPDATE wms_item_stock SET available_quantity=available_quantity-?, last_updated_on=CURRENT_TIMESTAMP WHERE item_no=? AND wsm_store_no=?", (line["quantity"], line["item_no"], order["wsm_store_no"]))
         connection.execute("UPDATE order_master SET order_status='CONFIRMED', payment_status='PAID', confirmed_on=CURRENT_TIMESTAMP WHERE order_no=?", (order_no,))
-    return {**get_order(order_no), "invoice_no": invoice_no, "receipt_no": receipt_no}
+    # Build the response payload
+    order_data = {**get_order(order_no), "invoice_no": invoice_no, "receipt_no": receipt_no}
 
+    # ✅ Call Telegram service here
+# ✅ Call Telegram service here
+    result = send_order_confirmation(order_no)   # pass order_no or invoice_no depending on your design
+    return {"message": "Order confirmed", "order": order_data, "telegram": result}
 
+#image including admin order management page
+#def get_order(order_no: str):
+#    with get_connection() as connection:
+#        order = connection.execute("SELECT * FROM order_master WHERE order_no = ?", (order_no,)).fetchone()
+#        if not order:
+#            raise OrderError("Order not found.")
+#        lines = connection.execute("SELECT item_no, item_name_snapshot, quantity, unit_price, discount_amount, line_total FROM order_details WHERE order_no = ?", (order_no,)).fetchall()
+#    return {"order_no": order["order_no"], "status": order["order_status"], "payment_status": order["payment_status"], "payable_amount": order["payable_amount"], "store_no": order["wsm_store_no"], "lines": [dict(line) for line in lines]}
 def get_order(order_no: str):
     with get_connection() as connection:
         order = connection.execute("SELECT * FROM order_master WHERE order_no = ?", (order_no,)).fetchone()
         if not order:
             raise OrderError("Order not found.")
-        lines = connection.execute("SELECT item_no, item_name_snapshot, quantity, unit_price, discount_amount, line_total FROM order_details WHERE order_no = ?", (order_no,)).fetchall()
-    return {"order_no": order["order_no"], "status": order["order_status"], "payment_status": order["payment_status"], "payable_amount": order["payable_amount"], "store_no": order["wsm_store_no"], "lines": [dict(line) for line in lines]}
+        
+        # LEFT JOIN দিয়ে প্রথম প্রডাক্ট ইমেজ আনা হচ্ছে
+        lines = connection.execute("""
+            SELECT 
+                od.item_no, 
+                od.item_name_snapshot, 
+                od.quantity, 
+                od.unit_price, 
+                od.discount_amount, 
+                od.line_total,
+                img.image_url
+            FROM order_details od
+            LEFT JOIN item_image img 
+                ON od.item_no = img.item_no AND img.active_status = 'Y' AND img.display_order = 1
+            WHERE od.order_no = ?
+        """, (order_no,)).fetchall()
+
+    return {
+        "order_no": order["order_no"], 
+        "status": order["order_status"], 
+        "payment_status": order["payment_status"], 
+        "payable_amount": order["payable_amount"], 
+        "store_no": order["wsm_store_no"], 
+        "lines": [dict(line) for line in lines]
+    }

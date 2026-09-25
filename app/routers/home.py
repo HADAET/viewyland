@@ -13,9 +13,41 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 BANNERS = [
-    {"eyebrow": "The Viewyland home edit", "title": "Make space for something beautiful.", "copy": "Collected objects, everyday essentials and special finds for your home.", "tone": "peach"},
-    {"eyebrow": "New season, new mood", "title": "Small pieces. Big character.", "copy": "Refresh a room with one considered object at a time.", "tone": "sage"},
-    {"eyebrow": "Viewyland weekend offer", "title": "Find your next treasure.", "copy": "Handpicked showpieces, ready to make your space feel like yours.", "tone": "gold"},
+    {
+        "eyebrow": "The Viewyland home edit",
+        "title": "Make space for something beautiful.",
+        "copy": "Collected objects, everyday essentials and special finds for your home.",
+        "tone": "peach",
+        "image": "https://thumbs.dreamstime.com/b/assorted-collection-vintage-modern-clocks-rustic-shelf-diverse-array-antique-contemporary-including-mantel-wall-cuckoo-425770655.jpg",
+    },
+    {
+        "eyebrow": "New season, new mood",
+        "title": "Small pieces. Big character.",
+        "copy": "Refresh a room with one considered object at a time.",
+        "tone": "sage",
+        "image": "https://media.sketchfab.com/models/8665bceba4ae44dc9fd40f441bbeb729/thumbnails/e0ea867847104ef7be0d9b9f9da67a3f/b0fea2781ecd4b3b8cda8787c5bf1318.jpeg",
+    },
+    {
+        "eyebrow": "Viewyland weekend offer",
+        "title": "Find your next treasure.",
+        "copy": "Handpicked showpieces, ready to make your space feel like yours.",
+        "tone": "gold",
+        "image": "https://m.media-amazon.com/images/I/81RLKdQnLyL._AC_UF894,1000_QL80_.jpg",
+    },
+    {
+        "eyebrow": "Curated living",
+        "title": "Crafted for comfort.",
+        "copy": "Thoughtfully designed pieces that bring warmth and character to every corner.",
+        "tone": "clay",
+        "image": "https://down-my.img.susercontent.com/file/sg-11134201-7rfge-m3zundog49fs34.webp",
+    },
+    {
+        "eyebrow": "Atmosphere & light",
+        "title": "Set the perfect mood.",
+        "copy": "Transform your living space with ambient details and timeless accents.",
+        "tone": "sand",
+        "image": "https://down-my.img.susercontent.com/file/my-11134211-820lh-mootakhnur5s85.webp",
+    }
 ]
 
 

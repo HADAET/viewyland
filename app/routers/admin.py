@@ -154,25 +154,82 @@ async def dashboard(request: Request, table: str = "bus_item_master"):
     return templates.TemplateResponse(request=request, name="admin.html", context={"tables": TABLES, "table_counts": table_counts, "selected_table": table, "columns": columns, "rows": rows, "items": items, "categories": categories, "stores": stores, "customers": customers, "read_only": table in READ_ONLY_TABLES})
 
 
+#@router.get("/orders", name="admin_orders")
+#async def order_management(request: Request):
+#    require_admin(request)
+#    with get_connection() as connection:
+#        orders = [dict(row) for row in connection.execute("SELECT order_no, customer_name_snapshot, customer_mobile_snapshot, order_status, payment_status, payable_amount, delivery_address, created_on FROM order_master ORDER BY created_on DESC").fetchall()]
+#        lines = connection.execute("SELECT order_no, item_no, item_name_snapshot, quantity, unit_price, line_total FROM order_details ORDER BY order_line_no").fetchall()
+#        invoice_rows = connection.execute("SELECT order_no, sh_invoice_no FROM wms_sh_invheader").fetchall()
+#        receipt_rows = connection.execute("SELECT header.order_no, payment.sh_mr_no FROM wms_sh_payment AS payment JOIN wms_sh_invheader AS header ON header.sh_invoice_no=payment.sh_invoice_no").fetchall()
+#    lines_by_order: dict[str, list[dict]] = {}
+#    for line in lines:
+#        lines_by_order.setdefault(line["order_no"], []).append(dict(line))
+#    invoices = {row["order_no"]: row["sh_invoice_no"] for row in invoice_rows}
+#    receipts = {row["order_no"]: row["sh_mr_no"] for row in receipt_rows}
+#    for order in orders:
+#        order["lines"] = lines_by_order.get(order["order_no"], [])
+#        order["invoice_no"] = invoices.get(order["order_no"])
+#        order["receipt_no"] = receipts.get(order["order_no"])
+#    return templates.TemplateResponse(request=request, name="admin_orders.html", context={"orders": orders})
+#image return in admin order management page.
+
 @router.get("/orders", name="admin_orders")
-async def order_management(request: Request):
+async def order_management(request: Request, from_date: str | None = None, to_date: str | None = None):
     require_admin(request)
     with get_connection() as connection:
-        orders = [dict(row) for row in connection.execute("SELECT order_no, customer_name_snapshot, customer_mobile_snapshot, order_status, payment_status, payable_amount, delivery_address, created_on FROM order_master ORDER BY created_on DESC").fetchall()]
-        lines = connection.execute("SELECT order_no, item_no, item_name_snapshot, quantity, unit_price, line_total FROM order_details ORDER BY order_line_no").fetchall()
+        query = """SELECT order_no, customer_name_snapshot, customer_mobile_snapshot, order_status, payment_status,
+            payable_amount, delivery_address, created_on FROM order_master WHERE 1=1"""
+        params: list[str] = []
+
+        if from_date:
+            query += " AND date(created_on) >= date(?)"
+            params.append(from_date)
+        if to_date:
+            query += " AND date(created_on) <= date(?)"
+            params.append(to_date)
+
+        query += " ORDER BY created_on DESC"
+
+        orders = [dict(row) for row in connection.execute(query, params).fetchall()]
+
+        lines = connection.execute("""
+            SELECT 
+                od.order_no, 
+                od.item_no, 
+                od.item_name_snapshot, 
+                od.quantity, 
+                od.unit_price, 
+                od.line_total,
+                img.image_url
+            FROM order_details od
+            LEFT JOIN item_image img 
+                ON od.item_no = img.item_no 
+               AND img.active_status = 'Y' 
+               AND (img.display_order = 1 OR img.display_order IS NULL)
+            ORDER BY od.order_line_no
+        """).fetchall()
+
         invoice_rows = connection.execute("SELECT order_no, sh_invoice_no FROM wms_sh_invheader").fetchall()
         receipt_rows = connection.execute("SELECT header.order_no, payment.sh_mr_no FROM wms_sh_payment AS payment JOIN wms_sh_invheader AS header ON header.sh_invoice_no=payment.sh_invoice_no").fetchall()
+
     lines_by_order: dict[str, list[dict]] = {}
     for line in lines:
         lines_by_order.setdefault(line["order_no"], []).append(dict(line))
+
     invoices = {row["order_no"]: row["sh_invoice_no"] for row in invoice_rows}
     receipts = {row["order_no"]: row["sh_mr_no"] for row in receipt_rows}
+
     for order in orders:
         order["lines"] = lines_by_order.get(order["order_no"], [])
         order["invoice_no"] = invoices.get(order["order_no"])
         order["receipt_no"] = receipts.get(order["order_no"])
-    return templates.TemplateResponse(request=request, name="admin_orders.html", context={"orders": orders})
 
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_orders.html",
+        context={"orders": orders, "from_date": from_date or "", "to_date": to_date or ""},
+    )
 
 @router.get("/orders/{order_no}/{document_type}", name="admin_order_document")
 async def order_document(request: Request, order_no: str, document_type: str):

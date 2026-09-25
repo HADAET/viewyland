@@ -22,14 +22,25 @@ def cart_count(raw_cookie: str | None) -> int:
 	return sum(read_cart(raw_cookie).values())
 
 
-def cart_lines(raw_cookie: str | None) -> list[dict]:
-	lines = []
-	for item_no, quantity in read_cart(raw_cookie).items():
-		product = get_product(item_no)
-		if product:
-			lines.append({"product": product, "quantity": quantity, "total": product["price"] * quantity})
-	return lines
+#def cart_lines(raw_cookie: str | None) -> list[dict]:
+#	lines = []
+#	for item_no, quantity in read_cart(raw_cookie).items():
+#		product = get_product(item_no)
+#		if product:
+#			lines.append({"product": product, "quantity": quantity, "total": product["price"] * quantity})
+#	return lines
 
+def cart_lines(raw_cookie: str | None) -> list[dict]:
+    lines = []
+    for item_no, quantity in read_cart(raw_cookie).items(): #[cite: 1]
+        product = get_product(item_no) #[cite: 1]
+        if product:
+            lines.append({
+                "product": product,  # products.py এর পুরো product dict টি পাস হচ্ছে
+                "quantity": quantity, 
+                "total": product["price"] * quantity
+            }) #[cite: 1]
+    return lines
 
 def add_to_cart(raw_cookie: str | None, item_no: str) -> tuple[str, int]:
 	cart = read_cart(raw_cookie)

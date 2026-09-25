@@ -7,6 +7,7 @@
     <div class="db-admin-user"><span>●</span><div><strong>Administrator</strong><small>Database access</small></div></div>
     <p class="db-sidebar-label">Database tables</p>
     <nav class="db-table-nav" aria-label="Database tables">
+      <a class="is-active" href="/admin/orders"><span>▣</span>Order management</a>
       {% for table in tables %}<a class="{% if selected_table == table %}is-active{% endif %}" href="/admin?table={{ table }}"><span>▤</span>{{ table }}<b>{{ table_counts[table] }}</b></a>{% endfor %}
     </nav>
     <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
@@ -27,3 +28,4 @@ window.viewylandAdminCustomers = {{ customers|tojson }};
 </script>
 {% endblock %}
 {% block scripts %}<script src="/static/js/admin.js" defer></script>{% endblock %}
+
