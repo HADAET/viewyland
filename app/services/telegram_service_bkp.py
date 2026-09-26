@@ -3,8 +3,8 @@ from datetime import datetime
 import requests
 from app.db.database import get_connection
 
-TELEGRAM_BOT_TOKEN = "8856282175:AAHMGQB7BJIOBqFaay1ijUAdbg9D_gRkLik"
-DEFAULT_CHAT_ID = "2094130186"
+TELEGRAM_BOT_TOKEN = "8856282175:AAHMGQB7BJIOBqFaay1ijUAdbg9D_gRkLik1992"
+DEFAULT_CHAT_ID = "20941301861992"
 
 TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
