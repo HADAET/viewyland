@@ -23,7 +23,7 @@ def _post_with_retry(payload, retries=3, delay=2):
             response = requests.post(
                 TELEGRAM_URL,
                 json=payload,
-                timeout=10,
+                timeout=10
             )
 
             response.raise_for_status()
@@ -38,7 +38,7 @@ def _post_with_retry(payload, retries=3, delay=2):
 
     return {
         "status": "failed",
-        "error": str(last_error),
+        "error": str(last_error)
     }
 
 
@@ -58,7 +58,7 @@ def send_order_confirmation(order_id, chat_id=None):
             FROM order_details od
             JOIN order_master om
                 ON od.order_no = om.order_no
-            WHERE od.order_no = %s
+            WHERE od.order_no = ?
         """, (order_id,))
 
         items = cursor.fetchall()
@@ -86,9 +86,7 @@ def send_order_confirmation(order_id, chat_id=None):
 
     items_text = "\n".join(item_lines)
 
-    total_amount = sum(
-        item[4] for item in items
-    )
+    total_amount = sum(item[4] for item in items)
 
     message_text = (
         f"🛍️ *নতুন অর্ডার এসেছে! Date: {order_date}*\n\n"
@@ -101,7 +99,7 @@ def send_order_confirmation(order_id, chat_id=None):
     payload = {
         "chat_id": chat_id,
         "text": message_text,
-        "parse_mode": "Markdown",
+        "parse_mode": "Markdown"
     }
 
     return _post_with_retry(payload)
