@@ -4,3 +4,4 @@ jinja2==3.1.4
 python-multipart==0.0.32
 a2wsgi==1.10.10
 requests
+psycopg2-binary
