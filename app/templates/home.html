@@ -1,24 +1,70 @@
 {% extends 'base.html' %}
 {% block title %}Viewyland &mdash; Online shopping for considered homes{% endblock %}
 {% block content %}
-<div class="marketplace-page">
-  <section class="market-utility"><span>Free delivery on qualifying orders</span><span>Authentic Viewyland pieces</span><span>Easy returns within 7 days</span></section>
-  <section class="market-header">
-    <a class="market-logo" href="/">VIEWYLAND<span>.</span><small>com</small></a>
-    <form class="market-search" action="/products" method="get"><input name="q" placeholder="Search for clocks, lamps, mirrors..." aria-label="Search products"><button type="submit" aria-label="Search">⌕</button></form>
-    <a class="market-account" href="/auth"><span>♙</span><small>{% if customer %}Hello, {{ customer.customer_name }}<br><b>My account</b>{% else %}Welcome to Viewyland<br><b>Sign in / Register</b>{% endif %}</small></a>
-    <a class="market-cart" href="/cart" aria-label="Shopping bag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8.5h14l-1 12H6l-1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>{% include 'components/cart_badge.html' %}</a>
+<div class="marketplace-page viewyland-home">
+  <!-- ===== BANNER (no sidebar, image fully visible) ===== -->
+  <section class="market-hero market-hero--clean">
+    <div class="market-banner" data-banner-rotator>
+      {% for banner in banners %}
+      <div class="market-banner-slide {% if loop.first %}is-active{% endif %}" data-banner-slide="{{ loop.index0 }}">
+        <div class="market-banner-copy">
+          <p class="eyebrow">{{ banner.eyebrow }}</p>
+          <h1>{{ banner.title }}</h1>
+          {# banner['copy'] not banner.copy: banner.copy is dict's built-in copy() method #}
+          <p class="banner-text">{{ banner['copy'] }}</p>
+          <a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a>
+        </div>
+        <div class="banner-art {{ banner.tone }}"{% if banner.image %} style="background-image:url('{{ banner.image }}');"{% endif %}>
+          {% if not banner.image %}<div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if banners|length > 1 %}
+      <div class="banner-dots">
+        {% for banner in banners %}<button type="button" data-banner-dot="{{ loop.index0 }}" aria-label="Show banner {{ loop.index }}"></button>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
   </section>
-  <nav class="market-nav"><a href="/products">Categories</a>{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}">{{ category.name }}</a>{% endfor %}<a href="/products?q=new">New arrivals</a><a href="/products?q=sale">Deals</a></nav>
-  <section class="market-hero">
-    <aside class="market-category-menu"><h2>Shop by category</h2>{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}"><span class="category-icon {{ category.icon }}"><i></i><b></b></span>{{ category.name }}<strong>&rsaquo;</strong></a>{% endfor %}<a class="all-categories" href="/products">All categories &rsaquo;</a></aside>
-    <div class="market-banner" data-banner-rotator>{% for banner in banners %}<div class="market-banner-slide {% if loop.first %}is-active{% endif %}" data-banner-slide="{{ loop.index0 }}"><div><p class="eyebrow">{{ banner.eyebrow }}</p><h1>{{ banner.title }}</h1><p>{{ banner.copy }}</p><a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a></div>
-      <div class="banner-art {{ banner.tone }}"{% if banner.image %} style="background-image:url('{{ banner.image }}'); background-size:contain; background-position:center;"{% endif %}>{% if not banner.image %}<div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>{% endif %}</div>
-    </div>{% endfor %}<div class="banner-dots">{% for banner in banners %}<button type="button" data-banner-dot="{{ loop.index0 }}" aria-label="Show banner {{ loop.index }}"></button>{% endfor %}</div></div>
+
+  <section class="home-trust">
+    <div><span>01</span><strong>Curated pieces</strong><small>Selected with a considered eye</small></div>
+    <div><span>02</span><strong>Malaysia delivery</strong><small>Carefully packed and delivered</small></div>
+    <div><span>03</span><strong>Easy returns</strong><small>7-day return policy</small></div>
+    <div><span>04</span><strong>Secure checkout</strong><small>Simple and protected payment</small></div>
   </section>
-  {% if flash_products %}<section class="market-section flash-section"><div class="market-section-heading"><h2>Flash sale</h2><span>Limited-time offers</span><a href="/products">Shop all &rsaquo;</a></div><div class="market-product-grid flash-grid">{% for product in flash_products %}{% include 'components/product_card.html' %}{% endfor %}</div></section>{% endif %}
-  <section class="market-section category-section"><div class="market-section-heading"><h2>Explore popular categories</h2><a href="/products">View all &rsaquo;</a></div><div class="market-category-grid">{% for category in categories %}<a href="/products?category={{ category.name|urlencode }}"><span class="category-icon {{ category.icon }}"><i></i><b></b></span><strong>{{ category.name }}</strong><small>Shop now &rsaquo;</small></a>{% endfor %}</div></section>
-  <section class="market-section recommendations" id="featured"><div class="market-section-heading"><h2>Just for you</h2><a href="/products">View all products &rsaquo;</a></div><div class="market-product-grid recommendation-grid">{% for product in market_products %}{% include 'components/product_card.html' %}{% endfor %}</div></section>
+
+  {% if flash_products %}
+  <section class="home-section home-products flash-section">
+    <div class="home-section-heading"><div><p class="eyebrow">Limited selection</p><h2>Flash sale</h2></div><a class="home-link" href="/products">Shop all <span>&rarr;</span></a></div>
+    <div class="market-product-grid home-product-grid">{% for product in flash_products %}{% include 'components/product_card.html' %}{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  <!-- ===== CATEGORIES: same as current new design (kept) ===== -->
+  <section class="home-section home-collections" id="collections">
+    <div class="home-section-heading"><div><p class="eyebrow">Find your style</p><h2>Explore our collections</h2></div><a class="home-link" href="/products">View all <span>&rarr;</span></a></div>
+    <div class="featured-collections">
+      {% for category in categories[:6] %}
+      <a class="featured-collection" href="/products?category={{ category.name|urlencode }}">
+        <span class="collection-number">0{{ loop.index }}</span>
+        <span class="category-icon {{ category.icon }}"><i></i><b></b></span>
+        <strong>{{ category.name }}</strong>
+        <small>Explore collection <span>&rarr;</span></small>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="home-section home-products" id="featured">
+    <div class="home-section-heading"><div><p class="eyebrow">Selected for you</p><h2>Just for you</h2></div><a class="home-link" href="/products">View all products <span>&rarr;</span></a></div>
+    <div class="market-product-grid home-product-grid">{% for product in market_products %}{% include 'components/product_card.html' %}{% endfor %}</div>
+  </section>
+
+  <section class="home-story" id="our-story">
+    <div class="home-story-copy"><p class="eyebrow">The Viewyland idea</p><h2>Objects with a past.<br><em>Spaces with a story.</em></h2><p>We bring together distinctive home pieces and everyday finds that make a room feel personal, warm and unmistakably yours.</p><a class="button button-dark" href="/products">Discover Viewyland <span>&rarr;</span></a></div>
+    <div class="home-story-art"><div class="story-circle"></div><div class="story-vase"><i></i><b></b></div><div class="story-stem stem-one"></div><div class="story-stem stem-two"></div></div>
+  </section>
 </div>
 {% endblock %}
 {% block scripts %}<script src="/static/js/home.js" defer></script>{% endblock %}

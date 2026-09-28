@@ -1,240 +1,928 @@
-import sqlite3
-from pathlib import Path
+# app/db/database.py
+
+import os
+import time
+from contextlib import contextmanager
+from threading import Lock
+
+import psycopg2
+from psycopg2 import OperationalError, InterfaceError
+from psycopg2.extras import RealDictCursor
+from psycopg2.pool import ThreadedConnectionPool
 
 
+# =========================================================
+# DATABASE CONFIG
+# =========================================================
 
-DATABASE_PATH = Path(__file__).resolve().parents[2] / "ecommerce.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set."
+    )
 
 
+# =========================================================
+# CONNECTION POOL
+# =========================================================
+
+_pool = None
+_pool_lock = Lock()
+
+
+def _create_pool():
+    """
+    Create a fresh PostgreSQL connection pool.
+
+    The pool is created lazily.
+    """
+
+    return ThreadedConnectionPool(
+        minconn=1,
+        maxconn=10,
+        dsn=DATABASE_URL,
+        sslmode="require",
+        connect_timeout=10,
+
+        # Keep TCP connections alive.
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=3,
+    )
+
+
+def _get_pool():
+    """
+    Return the current connection pool.
+
+    If no pool exists, create one.
+    """
+
+    global _pool
+
+    if _pool is not None:
+        return _pool
+
+    with _pool_lock:
+
+        if _pool is None:
+            _pool = _create_pool()
+
+    return _pool
+
+
+def _reset_pool():
+    """
+    Completely discard the current pool.
+
+    Used when PostgreSQL/Neon connections are no longer usable.
+    """
+
+    global _pool
+
+    with _pool_lock:
+
+        old_pool = _pool
+        _pool = None
+
+        if old_pool is not None:
+
+            try:
+                old_pool.closeall()
+            except Exception:
+                pass
+
+
+# =========================================================
+# CONNECTION ERROR DETECTION
+# =========================================================
+
+def _is_connection_error(error: Exception) -> bool:
+    """
+    Detect errors that indicate the PostgreSQL connection
+    itself is no longer usable.
+    """
+
+    if isinstance(
+        error,
+        (
+            OperationalError,
+            InterfaceError,
+        ),
+    ):
+        return True
+
+    message = str(error).lower()
+
+    connection_messages = (
+        "ssl connection has been closed",
+        "server closed the connection",
+        "connection already closed",
+        "connection is closed",
+        "connection not open",
+        "connection refused",
+        "connection reset",
+        "could not connect",
+        "connection timed out",
+        "terminating connection",
+        "closed unexpectedly",
+        "server terminated",
+        "broken pipe",
+        "network is unreachable",
+    )
+
+    return any(
+        text in message
+        for text in connection_messages
+    )
+
+
+# =========================================================
+# QUERY PLACEHOLDER CONVERSION
+# =========================================================
+
+def _convert_query(query: str) -> str:
+    """
+    Existing project code uses SQLite-style '?' placeholders.
+
+    psycopg2/PostgreSQL requires '%s'.
+
+    Example:
+
+        WHERE item_no=?
+
+    becomes:
+
+        WHERE item_no=%s
+    """
+
+    return query.replace("?", "%s")
+
+
+# =========================================================
+# DEBUG CURSOR
+# =========================================================
+
+class DebugCursor:
+    """
+    Small cursor wrapper.
+
+    It preserves the existing project style:
+
+        connection.execute(...).fetchall()
+        connection.execute(...).fetchone()
+
+    while internally using psycopg2.
+    """
+
+    def __init__(self, connection):
+        self.connection = connection
+        self.cursor = None
+
+    # -----------------------------------------------------
+    # EXECUTE
+    # -----------------------------------------------------
+
+    def execute(
+        self,
+        query,
+        params=None,
+    ):
+        started = time.perf_counter()
+
+        try:
+
+            self.cursor = self.connection.cursor(
+                cursor_factory=RealDictCursor
+            )
+
+            postgres_query = _convert_query(
+                query
+            )
+
+            if params is None:
+
+                self.cursor.execute(
+                    postgres_query
+                )
+
+            else:
+
+                self.cursor.execute(
+                    postgres_query,
+                    params,
+                )
+
+            elapsed = (
+                time.perf_counter()
+                - started
+            ) * 1000
+
+            print(
+                "[SQL DEBUG] "
+                f"{elapsed:.2f} ms | "
+                f"{query.strip()[:300]}"
+            )
+
+            return self
+
+        except Exception:
+
+            if self.cursor is not None:
+
+                try:
+                    self.cursor.close()
+                except Exception:
+                    pass
+
+                self.cursor = None
+
+            raise
+
+    # -----------------------------------------------------
+    # FETCH ONE
+    # -----------------------------------------------------
+
+    def fetchone(self):
+
+        if self.cursor is None:
+            raise RuntimeError(
+                "fetchone() called before execute()."
+            )
+
+        return self.cursor.fetchone()
+
+    # -----------------------------------------------------
+    # FETCH ALL
+    # -----------------------------------------------------
+
+    def fetchall(self):
+
+        if self.cursor is None:
+            raise RuntimeError(
+                "fetchall() called before execute()."
+            )
+
+        return self.cursor.fetchall()
+
+    # -----------------------------------------------------
+    # ITERATION
+    # -----------------------------------------------------
+
+    def __iter__(self):
+
+        if self.cursor is None:
+            raise RuntimeError(
+                "Iteration started before execute()."
+            )
+
+        return iter(self.cursor)
+
+    # -----------------------------------------------------
+    # CLOSE
+    # -----------------------------------------------------
+
+    def close(self):
+
+        if self.cursor is not None:
+
+            try:
+                self.cursor.close()
+            except Exception:
+                pass
+
+            self.cursor = None
+
+
+# =========================================================
+# DATABASE CONNECTION WRAPPER
+# =========================================================
+
+class DatabaseConnection:
+    """
+    Wrapper around psycopg2 connection.
+
+    Existing application code can continue using:
+
+        connection.execute(...)
+    """
+
+    def __init__(
+        self,
+        connection,
+        pool,
+    ):
+
+        self.connection = connection
+        self.pool = pool
+        self._broken = False
+
+        # Counts queries that have actually succeeded on the CURRENT
+        # underlying connection. Used to decide whether it's safe to
+        # transparently swap in a fresh connection and retry: if this
+        # is the very first query and it failed because the pool handed
+        # us an already-dead connection (Neon/idle-suspend killed it),
+        # nothing has happened yet, so a silent retry is safe. If a
+        # later query in the same transaction dies, we do NOT retry
+        # here — the transaction already has state and must be re-run
+        # by the caller, not silently restarted mid-way.
+        self._queries_run = 0
+
+    # -----------------------------------------------------
+    # EXECUTE
+    # -----------------------------------------------------
+
+    def execute(
+        self,
+        query,
+        params=None,
+    ):
+
+        started = time.perf_counter()
+
+        try:
+
+            cursor = DebugCursor(
+                self.connection
+            )
+
+            result = cursor.execute(
+                query,
+                params,
+            )
+
+            self._queries_run += 1
+
+            return result
+
+        except Exception as error:
+
+            if _is_connection_error(error) and self._queries_run == 0:
+
+                # -------------------------------------------------
+                # TRANSPARENT RETRY
+                # -------------------------------------------------
+                # This is the first query on this connection and it
+                # died on us before doing anything — almost always
+                # because the pool handed us a connection that Neon
+                # had already silently closed (autosuspend / idle
+                # timeout). Nothing has happened yet, so it's safe to
+                # swap in a fresh connection and retry once, silently.
+                # -------------------------------------------------
+
+                print(
+                    "[DB WARNING] "
+                    "First query on pooled connection failed "
+                    f"({error}). Retrying once with a fresh connection."
+                )
+
+                try:
+                    self.pool.putconn(
+                        self.connection,
+                        close=True,
+                    )
+                except Exception:
+                    pass
+
+                self.connection = self.pool.getconn()
+
+                try:
+
+                    cursor = DebugCursor(
+                        self.connection
+                    )
+
+                    result = cursor.execute(
+                        query,
+                        params,
+                    )
+
+                    self._queries_run += 1
+
+                    print(
+                        "[DB DEBUG] "
+                        "Retry succeeded on fresh connection."
+                    )
+
+                    return result
+
+                except Exception as retry_error:
+
+                    if _is_connection_error(retry_error):
+
+                        print(
+                            "[DB WARNING] "
+                            "PostgreSQL connection is dead. "
+                            "Discarding connection."
+                        )
+
+                        self._broken = True
+
+                        try:
+                            self.connection.rollback()
+                        except Exception:
+                            pass
+
+                    raise
+
+            if _is_connection_error(error):
+
+                print(
+                    "[DB WARNING] "
+                    "PostgreSQL connection is dead. "
+                    "Discarding connection."
+                )
+
+                self._broken = True
+
+                try:
+                    self.connection.rollback()
+                except Exception:
+                    pass
+
+            raise
+
+        finally:
+
+            elapsed = (
+                time.perf_counter()
+                - started
+            ) * 1000
+
+            if elapsed > 1000:
+
+                print(
+                    "[DB DEBUG] "
+                    "execute took "
+                    f"{elapsed:.2f} ms"
+                )
+
+    # -----------------------------------------------------
+    # EXECUTEMANY
+    # -----------------------------------------------------
+
+    def executemany(
+        self,
+        query,
+        params_list,
+    ):
+
+        started = time.perf_counter()
+
+        cursor = None
+
+        try:
+
+            cursor = self.connection.cursor()
+
+            postgres_query = _convert_query(
+                query
+            )
+
+            cursor.executemany(
+                postgres_query,
+                params_list,
+            )
+
+            self._queries_run += 1
+
+            elapsed = (
+                time.perf_counter()
+                - started
+            ) * 1000
+
+            print(
+                "[SQL DEBUG] "
+                f"{elapsed:.2f} ms | executemany | "
+                f"{query.strip()[:300]}"
+            )
+
+            return self
+
+        except Exception as error:
+
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+                cursor = None
+
+            if _is_connection_error(error) and self._queries_run == 0:
+
+                print(
+                    "[DB WARNING] "
+                    "First query (executemany) on pooled connection "
+                    f"failed ({error}). Retrying once with a fresh "
+                    "connection."
+                )
+
+                try:
+                    self.pool.putconn(
+                        self.connection,
+                        close=True,
+                    )
+                except Exception:
+                    pass
+
+                self.connection = self.pool.getconn()
+
+                try:
+
+                    cursor = self.connection.cursor()
+
+                    cursor.executemany(
+                        postgres_query,
+                        params_list,
+                    )
+
+                    self._queries_run += 1
+
+                    print(
+                        "[DB DEBUG] "
+                        "Retry succeeded on fresh connection."
+                    )
+
+                    return self
+
+                except Exception as retry_error:
+
+                    if _is_connection_error(retry_error):
+
+                        self._broken = True
+
+                        try:
+                            self.connection.rollback()
+                        except Exception:
+                            pass
+
+                    raise
+
+                finally:
+
+                    if cursor is not None:
+                        try:
+                            cursor.close()
+                        except Exception:
+                            pass
+
+            if _is_connection_error(error):
+
+                print(
+                    "[DB WARNING] "
+                    "PostgreSQL connection is dead. "
+                    "Discarding connection."
+                )
+
+                self._broken = True
+
+                try:
+                    self.connection.rollback()
+                except Exception:
+                    pass
+
+            raise
+
+        finally:
+
+            if cursor is not None:
+
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+
+            elapsed = (
+                time.perf_counter()
+                - started
+            ) * 1000
+
+            if elapsed > 1000:
+
+                print(
+                    "[DB DEBUG] "
+                    "executemany took "
+                    f"{elapsed:.2f} ms"
+                )
+
+    # -----------------------------------------------------
+    # COMMIT
+    # -----------------------------------------------------
+
+    def commit(self):
+
+        self.connection.commit()
+
+    # -----------------------------------------------------
+    # ROLLBACK
+    # -----------------------------------------------------
+
+    def rollback(self):
+
+        try:
+            self.connection.rollback()
+        except Exception:
+            pass
+
+
+# =========================================================
+# GET CONNECTION
+# =========================================================
+
+@contextmanager
 def get_connection():
-    connection = sqlite3.connect(DATABASE_PATH, timeout=30.0)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    # WAL mode permits your web users to read data even if SQLite Browser holds a brief write lock
-    connection.execute("PRAGMA journal_mode = WAL;")
-    connection.execute("PRAGMA synchronous = NORMAL;")
-    return connection
+    """
+    Get a PostgreSQL connection from the pool.
 
+    Dead connections are discarded instead of being returned
+    to the pool.
+    """
+
+    started = time.perf_counter()
+
+    pool = _get_pool()
+
+    connection = None
+    broken = False
+
+    # -----------------------------------------------------
+    # GET CONNECTION
+    # -----------------------------------------------------
+
+    try:
+
+        get_started = time.perf_counter()
+
+        connection = pool.getconn()
+
+        print(
+            "[DB DEBUG] pool.getconn: "
+            f"{(
+                time.perf_counter()
+                - get_started
+            ) * 1000:.2f} ms"
+        )
+
+    except Exception as error:
+
+        print(
+            "[DB ERROR] "
+            "Could not get connection: "
+            f"{error}"
+        )
+
+        _reset_pool()
+
+        pool = _get_pool()
+
+        connection = pool.getconn()
+
+    # -----------------------------------------------------
+    # BASIC CONNECTION CHECK
+    # -----------------------------------------------------
+    #
+    # IMPORTANT:
+    #
+    # We do NOT execute SELECT 1 here.
+    #
+    # connection.closed only checks local psycopg2 state.
+    # If Neon has silently killed the SSL connection,
+    # the real query will detect it.
+    # -----------------------------------------------------
+
+    try:
+
+        if connection.closed:
+
+            print(
+                "[DB WARNING] "
+                "Pool returned a closed connection. "
+                "Replacing it."
+            )
+
+            pool.putconn(
+                connection,
+                close=True,
+            )
+
+            connection = pool.getconn()
+
+    except Exception as error:
+
+        print(
+            "[DB WARNING] "
+            f"Connection check failed: {error}"
+        )
+
+        try:
+            pool.putconn(
+                connection,
+                close=True,
+            )
+        except Exception:
+            pass
+
+        connection = pool.getconn()
+
+    # -----------------------------------------------------
+    # WRAP CONNECTION
+    # -----------------------------------------------------
+
+    db = DatabaseConnection(
+        connection,
+        pool,
+    )
+
+    try:
+
+        yield db
+
+        # -------------------------------------------------
+        # COMMIT
+        # -------------------------------------------------
+
+        commit_started = time.perf_counter()
+
+        try:
+
+            db.connection.commit()
+
+            print(
+                "[DB DEBUG] commit: "
+                f"{(
+                    time.perf_counter()
+                    - commit_started
+                ) * 1000:.2f} ms"
+            )
+
+        except Exception as error:
+
+            if _is_connection_error(error):
+
+                broken = True
+
+                print(
+                    "[DB WARNING] "
+                    "Commit failed because "
+                    "PostgreSQL connection died."
+                )
+
+            raise
+
+    except Exception as error:
+
+        # -------------------------------------------------
+        # CONNECTION ERROR
+        # -------------------------------------------------
+
+        if _is_connection_error(error):
+
+            broken = True
+
+            print(
+                "[DB WARNING] "
+                "Connection error detected: "
+                f"{error}"
+            )
+
+        # -------------------------------------------------
+        # ROLLBACK
+        # -------------------------------------------------
+
+        try:
+            db.connection.rollback()
+        except Exception:
+            pass
+
+        raise
+
+    finally:
+
+        # -------------------------------------------------
+        # DatabaseConnection.execute() may have detected
+        # a broken connection.
+        # -------------------------------------------------
+
+        if getattr(
+            db,
+            "_broken",
+            False,
+        ):
+
+            broken = True
+
+        # -------------------------------------------------
+        # RETURN CONNECTION TO POOL
+        #
+        # NOTE: db.connection may no longer be the same
+        # object as the local `connection` variable above —
+        # DatabaseConnection.execute()/executemany() silently
+        # swap it out when the pool hands back an already-dead
+        # connection and a transparent retry succeeds. We must
+        # return whichever connection db is holding NOW.
+        # -------------------------------------------------
+
+        connection = db.connection
+
+        if connection is not None:
+
+            try:
+
+                pool.putconn(
+                    connection,
+                    close=broken,
+                )
+
+                if broken:
+
+                    print(
+                        "[DB DEBUG] "
+                        "Broken connection discarded."
+                    )
+
+            except Exception as error:
+
+                print(
+                    "[DB WARNING] "
+                    "Could not return connection: "
+                    f"{error}"
+                )
+
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+        print(
+            "[DB DEBUG] TOTAL connection context: "
+            f"{(
+                time.perf_counter()
+                - started
+            ) * 1000:.2f} ms"
+        )
+
+
+# =========================================================
+# DATABASE HEALTH CHECK
+# =========================================================
+
+def check_database_connection() -> bool:
+    """
+    Explicit database health check.
+
+    This function DOES execute SELECT 1.
+
+    Do NOT call this before every normal request.
+    """
+
+    try:
+
+        with get_connection() as connection:
+
+            connection.execute(
+                "SELECT 1"
+            ).fetchone()
+
+        return True
+
+    except Exception as error:
+
+        print(
+            "[DB HEALTH] "
+            f"Database unavailable: {error}"
+        )
+
+        return False
+
+
+# =========================================================
+# DATABASE INITIALIZATION
+# =========================================================
 
 def initialize_database():
-    with get_connection() as connection:
-        # SQLite equivalent of the product and price tables in onlineshop_db.sql.
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS bus_item_master (
-                item_no TEXT PRIMARY KEY,
-                item_type TEXT,
-                item_category TEXT NOT NULL,
-                item_name TEXT NOT NULL,
-                item_description TEXT,
-                made_in TEXT,
-                active_status TEXT NOT NULL DEFAULT 'Y',
-                display_tone TEXT NOT NULL DEFAULT 'sand',
-                display_type TEXT NOT NULL DEFAULT 'vase',
-                product_tag TEXT
-            );
+    """
+    Compatibility function used by app.main.
 
-            CREATE TABLE IF NOT EXISTS bus_item_category (
-                category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category_name TEXT NOT NULL UNIQUE,
-                description TEXT,
-                active_status TEXT NOT NULL DEFAULT 'Y'
-            );
+    This does NOT execute SQL.
 
-            CREATE TABLE IF NOT EXISTS bus_price_list (
-                price_line_no INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_no TEXT NOT NULL UNIQUE,
-                rate REAL NOT NULL,
-                currency TEXT NOT NULL DEFAULT 'TK.',
-                active_status TEXT NOT NULL DEFAULT 'Y',
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no)
-            );
+    It only initializes the PostgreSQL connection pool.
+    """
 
-            CREATE TABLE IF NOT EXISTS item_image (
-                image_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_no TEXT NOT NULL,
-                image_url TEXT NOT NULL,
-                alt_text TEXT,
-                display_order INTEGER NOT NULL DEFAULT 1,
-                active_status TEXT NOT NULL DEFAULT 'Y',
-                created_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no)
-            );
+    try:
 
-            CREATE TABLE IF NOT EXISTS flash_sale (
-                flash_sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_no TEXT NOT NULL,
-                sale_price REAL,
-                currency TEXT,
-                starts_on TEXT NOT NULL,
-                ends_on TEXT NOT NULL,
-                active_status TEXT NOT NULL DEFAULT 'Y',
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no)
-            );
+        _get_pool()
 
-            CREATE TABLE IF NOT EXISTS wms_store_mst (
-                wsm_store_no TEXT PRIMARY KEY,
-                wsm_store_name TEXT NOT NULL,
-                wsm_address TEXT,
-                active_status TEXT NOT NULL DEFAULT 'Y'
-            );
-
-            CREATE TABLE IF NOT EXISTS wms_item_stock (
-                item_no TEXT NOT NULL,
-                wsm_store_no TEXT NOT NULL,
-                available_quantity INTEGER NOT NULL DEFAULT 0 CHECK (available_quantity >= 0),
-                reserved_quantity INTEGER NOT NULL DEFAULT 0 CHECK (reserved_quantity >= 0),
-                last_updated_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (item_no, wsm_store_no),
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no),
-                FOREIGN KEY (wsm_store_no) REFERENCES wms_store_mst(wsm_store_no)
-            );
-
-            CREATE TABLE IF NOT EXISTS bus_registration (
-                registration_no TEXT PRIMARY KEY,
-                customer_name TEXT NOT NULL,
-                mobile_no TEXT NOT NULL UNIQUE,
-                email TEXT,
-                present_address TEXT,
-                password_hash TEXT,
-                profile_image TEXT,
-                active_status TEXT NOT NULL DEFAULT 'Y',
-                created_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS order_master (
-                order_no TEXT PRIMARY KEY,
-                registration_no TEXT NOT NULL,
-                wsm_store_no TEXT NOT NULL,
-                order_status TEXT NOT NULL DEFAULT 'PENDING',
-                payment_status TEXT NOT NULL DEFAULT 'UNPAID',
-                subtotal REAL NOT NULL DEFAULT 0,
-                discount_amount REAL NOT NULL DEFAULT 0,
-                payable_amount REAL NOT NULL DEFAULT 0,
-                delivery_address TEXT,
-                customer_name_snapshot TEXT NOT NULL,
-                customer_mobile_snapshot TEXT NOT NULL,
-                created_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                confirmed_on TEXT,
-                FOREIGN KEY (registration_no) REFERENCES bus_registration(registration_no),
-                FOREIGN KEY (wsm_store_no) REFERENCES wms_store_mst(wsm_store_no)
-            );
-
-            CREATE TABLE IF NOT EXISTS order_details (
-                order_line_no INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_no TEXT NOT NULL,
-                item_no TEXT NOT NULL,
-                item_name_snapshot TEXT NOT NULL,
-                quantity INTEGER NOT NULL CHECK (quantity > 0),
-                unit_price REAL NOT NULL CHECK (unit_price >= 0),
-                discount_amount REAL NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
-                line_total REAL NOT NULL CHECK (line_total >= 0),
-                FOREIGN KEY (order_no) REFERENCES order_master(order_no),
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no)
-            );
-
-            CREATE TABLE IF NOT EXISTS wms_sh_invheader (
-                sh_invoice_no TEXT PRIMARY KEY,
-                order_no TEXT NOT NULL UNIQUE,
-                sh_invoice_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                sh_registration_no TEXT NOT NULL,
-                sh_customer_name TEXT NOT NULL,
-                sh_customer_contact TEXT NOT NULL,
-                sh_invoice_status TEXT NOT NULL DEFAULT 'CONFIRMED',
-                wsm_store_no TEXT NOT NULL,
-                bill_amount REAL NOT NULL,
-                discount_amount REAL NOT NULL DEFAULT 0,
-                payable_amount REAL NOT NULL,
-                FOREIGN KEY (order_no) REFERENCES order_master(order_no)
-            );
-
-            CREATE TABLE IF NOT EXISTS wms_sh_invline (
-                sh_invline_no INTEGER PRIMARY KEY AUTOINCREMENT,
-                sh_invoice_no TEXT NOT NULL,
-                item_no TEXT NOT NULL,
-                item_name_snapshot TEXT NOT NULL,
-                sh_quantity INTEGER NOT NULL,
-                item_rate REAL NOT NULL,
-                discount REAL NOT NULL DEFAULT 0,
-                line_total REAL NOT NULL,
-                FOREIGN KEY (sh_invoice_no) REFERENCES wms_sh_invheader(sh_invoice_no),
-                FOREIGN KEY (item_no) REFERENCES bus_item_master(item_no)
-            );
-
-            CREATE TABLE IF NOT EXISTS wms_sh_payment (
-                sh_mr_no TEXT PRIMARY KEY,
-                sh_invoice_no TEXT NOT NULL,
-                sh_payment_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                sh_payment_type TEXT NOT NULL,
-                sh_payable_amt REAL NOT NULL,
-                sh_cashpaid_amt REAL NOT NULL DEFAULT 0,
-                payment_status TEXT NOT NULL DEFAULT 'PENDING',
-                FOREIGN KEY (sh_invoice_no) REFERENCES wms_sh_invheader(sh_invoice_no)
-            );
-            """
+        print(
+            "[DB INIT] "
+            "PostgreSQL connection pool initialized."
         )
 
-        price_columns = {row[1] for row in connection.execute("PRAGMA table_info(bus_price_list)").fetchall()}
-        if "previous_price" not in price_columns:
-            connection.execute("ALTER TABLE bus_price_list ADD COLUMN previous_price REAL")
-        if "currency" not in price_columns:
-            connection.execute("ALTER TABLE bus_price_list ADD COLUMN currency TEXT NOT NULL DEFAULT 'TK.'")
+    except Exception as error:
 
-        registration_columns = {row[1] for row in connection.execute("PRAGMA table_info(bus_registration)").fetchall()}
-        if "password_hash" not in registration_columns:
-            connection.execute("ALTER TABLE bus_registration ADD COLUMN password_hash TEXT")
-        if "profile_image" not in registration_columns:
-            connection.execute("ALTER TABLE bus_registration ADD COLUMN profile_image TEXT")
-        if "updated_on" not in registration_columns:
-            connection.execute("ALTER TABLE bus_registration ADD COLUMN updated_on TEXT")
-
-        category_count = connection.execute("SELECT COUNT(*) FROM bus_item_category").fetchone()[0]
-        if category_count == 0:
-            connection.executemany(
-                "INSERT INTO bus_item_category (category_name, description) VALUES (?, ?)",
-                [
-                    ("Vintage clocks", "Timepieces with a story to tell."),
-                    ("Showpiece decor", "Objects made to start a conversation."),
-                    ("Table lamps", "A warmer kind of illumination."),
-                    ("Wall & mirrors", "Details that complete the room."),
-                ],
-            )
-        # Backfill any category already used on an item but missing from the lookup table.
-        connection.execute(
-            """INSERT OR IGNORE INTO bus_item_category (category_name)
-            SELECT DISTINCT item_category FROM bus_item_master
-            WHERE item_category NOT IN (SELECT category_name FROM bus_item_category)"""
-        )
-
-        item_count = connection.execute("SELECT COUNT(*) FROM bus_item_master").fetchone()[0]
-        if item_count == 0:
-            connection.executemany(
-                """INSERT INTO bus_item_master
-                (item_no, item_type, item_category, item_name, item_description, made_in,
-                 display_tone, display_type, product_tag)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                [
-                    ("VL-001", "Clock", "Vintage clocks", "Brixton mantel clock", "Warm timber mantel clock with a classic Roman numeral dial.", "Malaysia", "terracotta", "clock", "Showpiece"),
-                    ("VL-002", "Globe", "Showpiece decor", "Montrose globe bar", "A statement globe inspired by old-world exploration.", "Malaysia", "sand", "globe", "New arrival"),
-                    ("VL-003", "Telephone", "Showpiece decor", "Hawthorn rotary phone", "A tactile retro telephone for shelves and sideboards.", "Malaysia", "lilac", "phone", "Limited"),
-                    ("VL-004", "Radio", "Showpiece decor", "Tivoli transistor radio", "A nostalgic radio object with a warm walnut finish.", "Malaysia", "olive", "radio", None),
-                    ("VL-005", "Clock", "Vintage clocks", "Windsor wall clock", "Oversized wall clock with an aged brass-inspired frame.", "Malaysia", "sand", "clock", "New arrival"),
-                    ("VL-006", "Lamp", "Table lamps", "Marcel pleated lamp", "A softly lit accent for a reading nook or console.", "Malaysia", "terracotta", "lamp", None),
-                    ("VL-007", "Mirror", "Wall & mirrors", "Orla oval mirror", "A refined oval mirror designed to soften a wall.", "Malaysia", "lilac", "mirror", "Showpiece"),
-                    ("VL-008", "Vase", "Showpiece decor", "Pienza ceramic vessel", "An earthy ceramic vessel with sculptural presence.", "Malaysia", "olive", "vase", None),
-                ],
-            )
-            connection.executemany(
-                "INSERT INTO bus_price_list (item_no, rate) VALUES (?, ?)",
-                [("VL-001", 289), ("VL-002", 459), ("VL-003", 198), ("VL-004", 169), ("VL-005", 245), ("VL-006", 139), ("VL-007", 319), ("VL-008", 119)],
-            )
-
-        connection.execute(
-            """INSERT OR IGNORE INTO wms_store_mst (wsm_store_no, wsm_store_name, wsm_address)
-            VALUES ('VL-MAIN', 'Viewyland Main Store', 'Kuala Lumpur, Malaysia')"""
-        )
-        connection.execute(
-            """INSERT OR IGNORE INTO wms_item_stock (item_no, wsm_store_no, available_quantity)
-            SELECT item_no, 'VL-MAIN', 5 FROM bus_item_master WHERE active_status = 'Y'"""
+        print(
+            "[DB INIT WARNING] "
+            "Could not initialize PostgreSQL pool: "
+            f"{error}"
         )

@@ -46,11 +46,10 @@ def send_order_confirmation(order_id, chat_id=None):
     chat_id = chat_id or DEFAULT_CHAT_ID
 
     with get_connection() as connection:
-        cursor = connection.cursor()
-
-        cursor.execute("""
+        items = connection.execute("""
             SELECT
                 om.created_on,
+                om.customer_mobile_snapshot,
                 od.item_name_snapshot,
                 od.quantity,
                 od.unit_price,
@@ -59,9 +58,7 @@ def send_order_confirmation(order_id, chat_id=None):
             JOIN order_master om
                 ON od.order_no = om.order_no
             WHERE od.order_no = ?
-        """, (order_id,))
-
-        items = cursor.fetchall()
+        """, (order_id,)).fetchall()
 
     if not items:
         return {
@@ -69,7 +66,8 @@ def send_order_confirmation(order_id, chat_id=None):
             "message": f"No items found for Order {order_id}"
         }
 
-    raw_created_on = items[0][0]
+    raw_created_on = items[0]["created_on"]
+    customer_mobile = items[0]["customer_mobile_snapshot"]
 
     try:
         order_date = datetime.fromisoformat(
@@ -79,18 +77,21 @@ def send_order_confirmation(order_id, chat_id=None):
         order_date = str(raw_created_on).split(" ")[0]
 
     item_lines = [
-        f"  • *{item_name_snapshot}* x {quantity} = ৳ {line_total:.2f}"
-        for created_on, item_name_snapshot, quantity, unit_price, line_total
-        in items
+        f"  • *{row['item_name_snapshot']}* x {row['quantity']} = ৳ {row['line_total']:.2f}"
+        for row in items
     ]
 
     items_text = "\n".join(item_lines)
 
-    total_amount = sum(item[4] for item in items)
+    total_amount = sum(
+        row["line_total"]
+        for row in items
+    )
 
     message_text = (
         f"🛍️ *নতুন অর্ডার এসেছে! Date: {order_date}*\n\n"
         f"🆔 *অর্ডার আইডি:* {order_id}\n"
+        f"📱 *মোবাইল:* {customer_mobile}\n\n"
         f"📦 *আইটেম সমুহ:*\n{items_text}\n\n"
         f"💰 *মোট টাকা:* ৳ {total_amount:.2f}\n\n"
         f"⚡ _অনুগ্রহ করে ড্যাশবোর্ড চেক করুন।_"

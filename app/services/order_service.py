@@ -92,7 +92,6 @@ def create_order(mobile_no: str, store_no: str, lines: list[dict], delivery_addr
 
 def confirm_order(order_no: str, payment_type: str, paid_amount: float):
     with get_connection() as connection:
-        connection.execute("BEGIN IMMEDIATE")
         order = connection.execute("SELECT * FROM order_master WHERE order_no = ?", (order_no,)).fetchone()
         if not order:
             raise OrderError("Order not found.")
@@ -117,8 +116,13 @@ def confirm_order(order_no: str, payment_type: str, paid_amount: float):
     order_data = {**get_order(order_no), "invoice_no": invoice_no, "receipt_no": receipt_no}
 
     # ✅ Call Telegram service here
-# ✅ Call Telegram service here
-    result = send_order_confirmation(order_no)   # pass order_no or invoice_no depending on your design
+    # Telegram notification is a side-effect only — its failure must never
+    # fail an already-confirmed order.
+    try:
+        result = send_order_confirmation(order_no)
+    except Exception as error:
+        print(f"[TELEGRAM WARNING] Failed to send order confirmation: {error}")
+        result = {"status": "failed", "error": str(error)}
     return {"message": "Order confirmed", "order": order_data, "telegram": result}
 
 #image including admin order management page

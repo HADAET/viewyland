@@ -5,19 +5,453 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Viewyland — vintage showpieces and timeless home decor.">
   <title>{% block title %}Viewyland — Objects with a past{% endblock %}</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/app.css">
+
+  <!-- Viewyland homepage refinement.
+       Kept here so home.html + base.html + navbar.html work together
+       without requiring a change to the Python/backend code. -->
+  <style>
+    :root{
+      --vl-ink:#2e3029;
+      --vl-muted:#77776f;
+      --vl-orange:#f4512c;
+      --vl-cream:#f7f4ee;
+      --vl-line:#e8e5de;
+      --vl-green:#cfe0c5;
+      --vl-dark:#30352d;
+    }
+
+    body{margin:0;background:#f7f6f3;color:var(--vl-ink)}
+    main{min-height:50vh}
+
+    /* ---------- New homepage ---------- */
+    .viewyland-home{
+      overflow:hidden;
+      background:#f7f6f3;
+      padding-top:0;
+    }
+    .viewyland-home .market-banner-copy .eyebrow{
+      margin:0 0 16px;
+      font:500 11px/1.2 'DM Mono',monospace;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#5e6257;
+    }
+    
+
+    .viewyland-home .market-banner-copy .button{
+      display:inline-flex;
+      align-items:center;
+      gap:22px;
+      padding:13px 18px;
+      background:var(--vl-orange);
+      color:#fff;
+      border:0;
+    }
+
+    .viewyland-home .banner-art:not([style]){
+      background:linear-gradient(115deg,#ded7cb 0%,#ded7cb 48%,#c9d6c0 100%);
+    }
+    .viewyland-home .banner-orb{opacity:.55}
+    .viewyland-home .banner-object{transform:scale(1.35)}
+
+    .home-trust{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      max-width:1180px;
+      margin:0 auto;
+      border-bottom:1px solid var(--vl-line);
+      background:#fff;
+    }
+    .home-trust>div{
+      min-height:88px;
+      padding:18px 24px;
+      display:grid;
+      grid-template-columns:34px 1fr;
+      align-content:center;
+      column-gap:10px;
+      border-right:1px solid var(--vl-line);
+    }
+    .home-trust>div:last-child{border-right:0}
+    .home-trust span{
+      grid-row:1/3;
+      font:500 10px 'DM Mono',monospace;
+      color:var(--vl-orange);
+      padding-top:3px;
+    }
+    .home-trust strong{font-size:12px;font-weight:600}
+    .home-trust small{margin-top:3px;color:#999;font-size:10px}
+
+    .home-section{
+      width:min(1180px,calc(100% - 40px));
+      margin:0 auto;
+      padding:76px 0 0;
+    }
+    .home-section-heading{
+      display:flex;
+      align-items:end;
+      justify-content:space-between;
+      gap:20px;
+      margin-bottom:24px;
+    }
+    .home-section-heading .eyebrow{
+      margin:0 0 7px;
+      color:var(--vl-orange);
+      font:500 10px 'DM Mono',monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .home-section-heading h2{
+      margin:0;
+      color:var(--vl-ink);
+      font:500 clamp(29px,3.5vw,43px)/1 'Newsreader',serif;
+      letter-spacing:-.035em;
+    }
+    .home-link{
+      color:var(--vl-ink);
+      font:500 11px 'DM Mono',monospace;
+      text-decoration:none;
+      border-bottom:1px solid #b9b8b1;
+      padding-bottom:4px;
+      white-space:nowrap;
+    }
+    .home-link:hover{color:var(--vl-orange);border-color:var(--vl-orange)}
+
+    .featured-collections{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+    }
+    .featured-collection{
+      position:relative;
+      min-height:180px;
+      padding:25px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      overflow:hidden;
+      text-decoration:none;
+      color:var(--vl-ink);
+      background:#fff;
+      border:1px solid var(--vl-line);
+      transition:transform .2s ease,box-shadow .2s ease;
+    }
+    .featured-collection:nth-child(2n){background:#e8eee3}
+    .featured-collection:nth-child(3n){background:#f0e5d8}
+    .featured-collection:hover{
+      transform:translateY(-3px);
+      box-shadow:0 12px 28px rgba(35,35,30,.08);
+    }
+    .collection-number{
+      position:absolute;
+      top:18px;
+      right:20px;
+      color:#999;
+      font:500 10px 'DM Mono',monospace;
+    }
+    .featured-collection .category-icon{
+      position:absolute;
+      left:25px;
+      top:4px;
+      transform-origin:top left;
+    }
+    .featured-collection strong{
+      position:relative;
+      z-index:2;
+    }
+    .featured-collection small{
+      position:relative;
+      z-index:2;
+      margin-top:10px;
+      color:#777;
+      font-size:10px;
+    }
+    .featured-collection small span{color:var(--vl-orange);margin-left:5px}
+
+    .home-story{
+      width:min(1180px,calc(100% - 40px));
+      min-height:420px;
+      margin:90px auto 80px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      overflow:hidden;
+      background:#dfe7d8;
+    }
+    .home-story-copy{
+      padding:70px clamp(30px,6vw,80px);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    .home-story-copy .eyebrow{
+      margin:0 0 12px;
+      color:#66725d;
+      font:500 10px 'DM Mono',monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .home-story-copy h2{
+      margin:0;
+      font:500 clamp(38px,5vw,64px)/.92 'Newsreader',serif;
+      letter-spacing:-.045em;
+    }
+    .home-story-copy h2 em{color:#64745a;font-style:italic}
+    .home-story-copy>p:not(.eyebrow){
+      max-width:470px;
+      margin:24px 0;
+      color:#596054;
+      line-height:1.75;
+      font-size:13px;
+    }
+    .home-story-copy .button{align-self:flex-start}
+    .home-story-art{
+      position:relative;
+      min-height:420px;
+      overflow:hidden;
+      background:#c8d4bf;
+    }
+    .story-circle{
+      position:absolute;
+      width:320px;height:320px;
+      top:48px;left:50%;
+      transform:translateX(-50%);
+      border-radius:50%;
+      background:#aebfa2;
+    }
+    .story-vase{
+      position:absolute;
+      width:105px;height:170px;
+      left:50%;bottom:58px;
+      transform:translateX(-50%);
+      border-radius:18px 18px 42px 42px;
+      background:#8f7c65;
+      box-shadow:18px 22px 30px rgba(53,58,46,.18);
+    }
+    .story-vase i{
+      position:absolute;left:25px;top:-17px;
+      width:55px;height:35px;
+      border-radius:50%;
+      background:#786753;
+    }
+    .story-vase b{
+      position:absolute;left:16px;top:-4px;
+      width:73px;height:18px;
+      border-radius:50%;
+      background:#9e8b72;
+    }
+    .story-stem{
+      position:absolute;
+      width:2px;height:170px;
+      bottom:205px;left:50%;
+      background:#65755d;
+      transform-origin:bottom;
+    }
+    .stem-one{transform:rotate(-22deg)}
+    .stem-two{transform:rotate(25deg)}
+    .story-stem:after{
+      content:"";
+      position:absolute;
+      width:46px;height:18px;
+      border-radius:100% 0 100% 0;
+      background:#71856a;
+      top:18px;left:-36px;
+      transform:rotate(-18deg);
+    }
+    .stem-two:after{left:-6px;transform:rotate(18deg)}
+
+    /* ---------- Navigation refinements ---------- */
+    .site-header{
+      display:block !important;
+      visibility:visible !important;
+      position:relative;
+      z-index:100;
+      background:#fff;
+    }
+    .announcement{
+      min-height:28px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:14px;
+      padding:0 16px;
+      background:#30352d;
+      color:#f5f3ed;
+      font:500 9px 'DM Mono',monospace;
+      letter-spacing:.04em;
+    }
+    .announcement span{color:#d6e7ca}
+    .nav-wrap{
+      position:relative;
+      min-height:20px;
+      max-width:1240px;
+      margin:0 auto;
+      padding:0 24px;
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      align-items:center;
+      gap:35px;
+      border-bottom:1px solid var(--vl-line);
+    }
+    .brand{
+      color:#2f342d;
+      text-decoration:none;
+      font:600 23px 'DM Mono',monospace;
+      letter-spacing:-.08em;
+    }
+    .brand span{color:var(--vl-orange)}
+    .nav-links{
+      display:flex;
+      align-items:center;
+      gap:30px;
+      height:100%;
+    }
+    .nav-links>a,
+    .nav-collections summary{
+      color:#55564f;
+      font-size:11px;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .nav-links>a:hover,
+    .nav-collections summary:hover{color:var(--vl-orange)}
+    .nav-links>a.active{color:var(--vl-orange)}
+    .nav-collections{position:relative;height:100%;display:flex;align-items:center}
+    .nav-collections summary{list-style:none}
+    .nav-collections summary::-webkit-details-marker{display:none}
+    .nav-collections summary:after{content:"⌄";margin-left:6px;font-size:11px}
+    .nav-collections[open] summary{color:var(--vl-orange)}
+    .collection-mega{
+      position:absolute;
+      top:calc(100% + 1px);
+      left:-30px;
+      width:min(720px,80vw);
+      padding:28px;
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:28px 35px;
+      background:#fff;
+      border:1px solid var(--vl-line);
+      box-shadow:0 18px 45px rgba(35,35,30,.10);
+    }
+    .mega-group h3{
+      margin:0 0 11px;
+      color:#9a9a92;
+      font:500 9px 'DM Mono',monospace;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+    }
+    .mega-group a{
+      display:block;
+      margin:8px 0;
+      color:#40423c;
+      font-size:11px;
+      text-decoration:none;
+    }
+    .mega-group a:hover{color:var(--vl-orange)}
+    .mega-all{
+      grid-column:1/-1;
+      padding-top:16px;
+      border-top:1px solid var(--vl-line);
+      color:var(--vl-orange)!important;
+      font:500 10px 'DM Mono',monospace!important;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+    }
+    .nav-actions{display:flex;align-items:center;gap:18px}
+    .icon-button{
+      width:30px;height:30px;
+      display:grid;place-items:center;
+      padding:0;border:0;background:none;color:#40423c;cursor:pointer;
+    }
+    .icon-button svg,.cart-link svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5}
+    .cart-link{position:relative;color:#40423c;text-decoration:none}
+    .cart-link .cart-badge{right:-9px;top:-7px;background:var(--vl-orange)}
+    .nav-search{
+      max-width:1240px;
+      margin:0 auto;
+      padding:0 24px;
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      align-items:center;
+      gap:12px;
+      max-height:0;
+      overflow:hidden;
+      opacity:0;
+      transition:max-height .2s ease,opacity .2s ease,padding .2s ease;
+      background:#fff;
+    }
+    .site-header.search-open .nav-search{
+      max-height:72px;
+      padding-top:13px;
+      padding-bottom:13px;
+      opacity:1;
+      border-bottom:1px solid var(--vl-line);
+    }
+    .nav-search label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+    .nav-search input{
+      width:100%;
+      border:0;
+      outline:0;
+      font:14px 'DM Sans',sans-serif;
+      background:transparent;
+    }
+    .nav-search button{
+      border:0;background:transparent;color:var(--vl-orange);
+      font:500 10px 'DM Mono',monospace;cursor:pointer;
+    }
+    .nav-search-icon svg{width:18px;height:18px;fill:none;stroke:#777;stroke-width:1.5}
+
+    .site-footer{
+      margin-top:0;
+      padding:55px 24px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:9px;
+      text-align:center;
+      background:#30352d;
+      color:#ddd;
+    }
+    .site-footer .brand{color:#fff}
+    .site-footer p{margin:0;color:#aaa;font-size:11px}
+    .site-footer .footer-note{margin-top:12px;color:#777;font:9px 'DM Mono',monospace}
+
+    @media(max-width:800px){
+      .announcement{font-size:8px;white-space:nowrap;overflow:hidden}
+      .nav-wrap{grid-template-columns:auto 1fr auto;gap:14px;padding:0 16px}
+      .nav-links{gap:14px}
+      .nav-links>a:first-child{display:none}
+      .nav-links>a{font-size:10px}
+      .nav-collections summary{font-size:10px}
+      .collection-mega{
+        position:fixed;
+        top:101px;
+        left:10px;
+        right:10px; 
+        width:auto;
+        max-height:70vh;
+        overflow:auto;
+        grid-template-columns:repeat(2,1fr);
+        padding:22px;
+      }
+  </style>
 </head>
+
 <body>
-  {% if not hide_global_nav|default(false) %}{% include 'components/navbar.html' %}{% endif %}
+  {% include 'components/navbar.html' %}
+
   <main>{% block content %}{% endblock %}</main>
+
   <footer class="site-footer">
     <a class="brand" href="/">VIEWYLAND<span>.</span></a>
     <p>Vintage showpieces and collected objects for memorable homes.</p>
     <p class="footer-note">© 2026 Viewyland</p>
   </footer>
+
   {% block scripts %}{% endblock %}
   <script src="/static/js/cart.js" defer></script>
 </body>

@@ -60,7 +60,7 @@ async def home_page(request: Request):
         context={
             "featured_products": get_featured_products(),
             "hero_products": get_products(limit=4),
-            "market_products": get_products(limit=8),
+            "market_products": get_products(limit=12),
             "flash_products": get_active_flash_products(),
             "categories": get_categories(),
             "cart_count": cart_count(request.cookies.get(COOKIE_NAME)),

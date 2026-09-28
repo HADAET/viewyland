@@ -13,3 +13,14 @@
 	show(0);
 	setInterval(() => show(active + 1), 5000);
 })();
+
+(() => {
+	const bannerImages = [...document.querySelectorAll('[data-banner-image]')];
+
+	bannerImages.forEach((banner) => {
+		const image = banner.dataset.bannerImage;
+		if (image) {
+			banner.style.backgroundImage = `url("${image}")`;
+		}
+	});
+})();

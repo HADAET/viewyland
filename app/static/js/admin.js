@@ -73,6 +73,7 @@
     fields.innerHTML = '';
     
     columns.forEach((column) => {
+      if (column.virtual) return;
       if (mode === 'edit' && column.pk) return;
       if (mode === 'add' && (column.auto_id || (column.pk && column.type.toUpperCase().includes('INTEGER')))) return;
       
@@ -168,37 +169,6 @@
 
     dialog.showModal();
   };
-
-  // Automatically convert exact item_no column values to item_name in the display grid table
-  if (window.viewylandAdminItems && window.viewylandAdminItems.length) {
-    const tableHeaders = document.querySelectorAll('.db-table th');
-    let itemNoIndex = -1;
-    
-    tableHeaders.forEach((th, index) => {
-      const clone = th.cloneNode(true);
-      const small = clone.querySelector('small');
-      if (small) small.remove();
-      
-      if (clone.textContent.trim() === 'item_no') {
-        itemNoIndex = index;
-      }
-    });
-
-    if (itemNoIndex !== -1) {
-      const rows = document.querySelectorAll('.db-table tbody tr');
-      rows.forEach((tr) => {
-        const cells = tr.querySelectorAll('td');
-        if (cells[itemNoIndex] && !cells[itemNoIndex].classList.contains('db-empty')) {
-          const itemNo = cells[itemNoIndex].textContent.trim();
-          const matchedItem = window.viewylandAdminItems.find(i => String(i.item_no) === String(itemNo));
-          if (matchedItem) {
-            cells[itemNoIndex].textContent = matchedItem.item_name;
-            cells[itemNoIndex].title = `${matchedItem.item_name} (ID: ${itemNo})`;
-          }
-        }
-      });
-    }
-  }
 
   document.querySelectorAll('[data-row-editor]').forEach((button) => button.addEventListener('click', () => openEditor(button)));
   document.querySelectorAll('[data-dialog-close]').forEach((button) => button.addEventListener('click', close));
