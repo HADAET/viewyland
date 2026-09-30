@@ -14,9 +14,21 @@
           <p class="banner-text">{{ banner['copy'] }}</p>
           <a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a>
         </div>
+        <!-- old code home spin image
         <div class="banner-art {{ banner.tone }}"{% if banner.image %} style="background-image:url('{{ banner.image }}');"{% endif %}>
           {% if not banner.image %}<div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>{% endif %}
-        </div>
+        </div> -->
+        <div class="banner-art {{ banner.tone }}">
+          {% if banner.images %}
+            <div class="banner-image-row">
+              {% for img in banner.images %}
+          <div class="banner-image-cell" style="background-image:url('{{ img }}');"></div>
+              {% endfor %}
+          </div>
+        {% else %}
+       <div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>
+        {% endif %}
+      </div>
       </div>
       {% endfor %}
       {% if banners|length > 1 %}
@@ -29,7 +41,7 @@
 
   <section class="home-trust">
     <div><span>01</span><strong>Curated pieces</strong><small>Selected with a considered eye</small></div>
-    <div><span>02</span><strong>Malaysia delivery</strong><small>Carefully packed and delivered</small></div>
+    <div><span>02</span><strong>Bangladesh delivery</strong><small>Carefully packed and delivered</small></div>
     <div><span>03</span><strong>Easy returns</strong><small>7-day return policy</small></div>
     <div><span>04</span><strong>Secure checkout</strong><small>Simple and protected payment</small></div>
   </section>
@@ -59,8 +71,11 @@
   <section class="home-section home-products" id="featured">
     <div class="home-section-heading"><div><p class="eyebrow">Selected for you</p><h2>Just for you</h2></div><a class="home-link" href="/products">View all products <span>&rarr;</span></a></div>
     <div class="market-product-grid home-product-grid">{% for product in market_products %}{% include 'components/product_card.html' %}{% endfor %}</div>
+    <a href="/products"
+   style="display:flex;justify-content: center;align-items:center;gap:12px;margin-left:auto;padding:14px 24px;min-height:50px;border:1px solid rgba(0,231,255,.45);border-radius:999px;background:linear-gradient(135deg,rgba(0,231,255,.14),rgba(0,231,255,.04));color:#00e7ff;font-size:16px;font-weight:700;letter-spacing:.2px;text-decoration:none;box-shadow:0 4px 18px rgba(0,231,255,.10);transition:all .25s ease;"onmouseover="this.style.background='#00e7ff';this.style.color='#081014';this.style.borderColor='#00e7ff';this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 25px rgba(0,231,255,.25)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,231,255,.14),rgba(0,231,255,.04))';this.style.color='#00e7ff';this.style.borderColor='rgba(0,231,255,.45)';this.style.transform='translateY(0)';this.style.boxShadow='0 4px 18px rgba(0,231,255,.10)'">
+   <span>View all products</span><span style="font-size:21px;line-height:1;">→</span>
+   </a>
   </section>
-
   <section class="home-story" id="our-story">
     <div class="home-story-copy"><p class="eyebrow">The Viewyland idea</p><h2>Objects with a past.<br><em>Spaces with a story.</em></h2><p>We bring together distinctive home pieces and everyday finds that make a room feel personal, warm and unmistakably yours.</p><a class="button button-dark" href="/products">Discover Viewyland <span>&rarr;</span></a></div>
     <div class="home-story-art"><div class="story-circle"></div><div class="story-vase"><i></i><b></b></div><div class="story-stem stem-one"></div><div class="story-stem stem-two"></div></div>

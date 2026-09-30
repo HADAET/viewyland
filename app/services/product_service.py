@@ -198,3 +198,23 @@ def refresh_product_cache():
     with _cache_lock:
         _products_cache["data"] = products
         _products_cache["t"] = time.time()
+
+import random
+
+
+def get_mixed_products(limit: int = 24, per_category: int = 3):
+    """Pick up to `per_category` random products from each category,
+    shuffled, so the homepage never shows one category back-to-back."""
+    items = list(_all_products())
+    random.shuffle(items)
+
+    by_category: dict[str, list[dict]] = {}
+    for p in items:
+        by_category.setdefault(p["category"], []).append(p)
+
+    picked: list[dict] = []
+    for products in by_category.values():
+        picked.extend(products[:per_category])
+
+    random.shuffle(picked)
+    return picked[:limit]        

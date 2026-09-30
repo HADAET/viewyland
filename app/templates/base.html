@@ -15,42 +15,20 @@
        Kept here so home.html + base.html + navbar.html work together
        without requiring a change to the Python/backend code. -->
   <style>
-    :root{
-      --vl-ink:#2e3029;
-      --vl-muted:#77776f;
-      --vl-orange:#f4512c;
-      --vl-cream:#f7f4ee;
-      --vl-line:#e8e5de;
-      --vl-green:#cfe0c5;
-      --vl-dark:#30352d;
+    :root{--vl-ink:#2e3029;--vl-muted:#77776f;--vl-orange:#f4512c;--vl-cream:#f7f4ee;--vl-line:#e8e5de;--vl-green:#cfe0c5;--vl-dark:#30352d;
     }
 
     body{margin:0;background:#f7f6f3;color:var(--vl-ink)}
     main{min-height:50vh}
 
     /* ---------- New homepage ---------- */
-    .viewyland-home{
-      overflow:hidden;
-      background:#f7f6f3;
-      padding-top:0;
+    .viewyland-home{overflow:hidden;background:#f7f6f3;padding-top:0;
     }
-    .viewyland-home .market-banner-copy .eyebrow{
-      margin:0 0 16px;
-      font:500 11px/1.2 'DM Mono',monospace;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-      color:#5e6257;
+    .viewyland-home .market-banner-copy .eyebrow{margin:0 0 16px;font:500 11px/1.2 'DM Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:#5e6257;
     }
     
 
-    .viewyland-home .market-banner-copy .button{
-      display:inline-flex;
-      align-items:center;
-      gap:22px;
-      padding:13px 18px;
-      background:var(--vl-orange);
-      color:#fff;
-      border:0;
+    .viewyland-home .market-banner-copy .button{display:inline-flex;align-items:center;gap:22px;padding:13px 18px;background:var(--vl-orange);color:#fff;border:0;
     }
 
     .viewyland-home .banner-art:not([style]){
@@ -59,22 +37,9 @@
     .viewyland-home .banner-orb{opacity:.55}
     .viewyland-home .banner-object{transform:scale(1.35)}
 
-    .home-trust{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      max-width:1180px;
-      margin:0 auto;
-      border-bottom:1px solid var(--vl-line);
-      background:#fff;
+    .home-trust{display:grid;grid-template-columns:repeat(4,1fr);max-width:1180px;margin:0 auto;border-bottom:1px solid var(--vl-line);background:#fff;
     }
-    .home-trust>div{
-      min-height:88px;
-      padding:18px 24px;
-      display:grid;
-      grid-template-columns:34px 1fr;
-      align-content:center;
-      column-gap:10px;
-      border-right:1px solid var(--vl-line);
+    .home-trust>div{min-height:88px;padding:18px 24px;display:grid;grid-template-columns:34px 1fr;align-content:center;column-gap:10px;border-right:1px solid var(--vl-line);
     }
     .home-trust>div:last-child{border-right:0}
     .home-trust span{
@@ -427,17 +392,10 @@
       .nav-links>a:first-child{display:none}
       .nav-links>a{font-size:10px}
       .nav-collections summary{font-size:10px}
-      .collection-mega{
-        position:fixed;
-        top:101px;
-        left:10px;
-        right:10px; 
-        width:auto;
-        max-height:70vh;
-        overflow:auto;
-        grid-template-columns:repeat(2,1fr);
-        padding:22px;
+      .collection-mega{position:fixed;top:101px;left:10px;right:10px; width:auto;max-height:70vh;overflow:auto;grid-template-columns:repeat(2,1fr);padding:22px;
       }
+    }
+
   </style>
 </head>
 
