@@ -24,7 +24,8 @@ def _warm_cache():
 def _cache_refresher():
     """Keeps the product cache fresh (and Neon awake) so users never wait."""
     while True:
-        time.sleep(45)  # must be less than PRODUCT_CACHE_TTL (60)
+        #time.sleep(45)  # must be less than PRODUCT_CACHE_TTL (60)
+        time.sleep(3600)  
         try:
             _warm_cache()
         except Exception as e:

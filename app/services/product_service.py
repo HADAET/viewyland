@@ -191,14 +191,24 @@ def get_active_flash_products():
             _flash_cache["t"] = time.time()
         return _flash_cache["data"]
 
-
+# to make less logs in neon DB, changing new code
+#def refresh_product_cache():
+#    """Reload products in the background and swap them in, so users never wait."""
+#    products = _load_products()
+#    with _cache_lock:
+#        _products_cache["data"] = products
+#        _products_cache["t"] = time.time()
 def refresh_product_cache():
-    """Reload products in the background and swap them in, so users never wait."""
+    if _is_fresh(_products_cache, PRODUCT_CACHE_TTL):
+        return _products_cache["data"]
+
     products = _load_products()
+
     with _cache_lock:
         _products_cache["data"] = products
         _products_cache["t"] = time.time()
 
+    return products
 import random
 
 
