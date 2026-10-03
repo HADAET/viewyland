@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.db.database import initialize_database
+from app.db.database import initialize_database, get_connection
 from app.routers import admin, auth, cart, checkout, home, products
 from app.services.product_service import (
     get_active_flash_products,
@@ -20,17 +20,31 @@ def _warm_cache():
     get_active_flash_products()
     get_categories()
 
+##stoping for now to reduce public network transfer traffic from neon. removing _warm_chche() for temporary
+#def _cache_refresher():
+#    """Keeps the product cache fresh (and Neon awake) so users never wait."""
+#    while True:
+#        #time.sleep(45)  # must be less than PRODUCT_CACHE_TTL (60)
+#        time.sleep(3600)  
+#        try:
+#            _warm_cache()
+#        except Exception as e:
+#            print("Cache refresh error:", e)
 
 def _cache_refresher():
-    """Keeps the product cache fresh (and Neon awake) so users never wait."""
     while True:
         #time.sleep(45)  # must be less than PRODUCT_CACHE_TTL (60)
-        time.sleep(3600)  
-        try:
-            _warm_cache()
-        except Exception as e:
-            print("Cache refresh error:", e)
+        time.sleep(3600)
 
+        try:
+            #_warm_cache()
+            with get_connection() as connection:
+                connection.execute("SELECT 1").fetchone()
+
+            print("[DB KEEPALIVE] Neon connection checked.")
+
+        except Exception as e:
+            print("[DB KEEPALIVE ERROR]", e)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
