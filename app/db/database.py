@@ -15,7 +15,7 @@ from psycopg2.pool import ThreadedConnectionPool
 # DATABASE CONFIG
 # =========================================================
 
-DATABASE_URL_BKP_BKP = os.getenv("DATABASE_URL_BKP")
+DATABASE_URL_BKP = os.getenv("DATABASE_URL_BKP")
 
 if not DATABASE_URL_BKP:
     raise RuntimeError(
