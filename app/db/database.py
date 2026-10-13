@@ -15,11 +15,11 @@ from psycopg2.pool import ThreadedConnectionPool
 # DATABASE CONFIG
 # =========================================================
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL_BKP_BKP = os.getenv("DATABASE_URL_BKP")
 
-if not DATABASE_URL:
+if not DATABASE_URL_BKP:
     raise RuntimeError(
-        "DATABASE_URL environment variable is not set."
+        "DATABASE_URL_BKP environment variable is not set."
     )
 
 
@@ -41,7 +41,7 @@ def _create_pool():
     return ThreadedConnectionPool(
         minconn=1,
         maxconn=10,
-        dsn=DATABASE_URL,
+        dsn=DATABASE_URL_BKP,
         sslmode="require",
         connect_timeout=10,
 
