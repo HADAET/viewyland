@@ -18,7 +18,7 @@
             <div class="gallery-thumbs">
                 {% for image in product.images %}
                     <button type="button" data-gallery-thumb="{{ image.url }}" aria-label="View image {{ loop.index }}">
-                        <img src="{{ image.url }}" alt="{{ image.alt or product.name }}">
+                        <img src="{{ image.url }}" alt="{{ image.alt or product.name }}" loading="lazy">
                     </button>
                 {% endfor %}
             </div>

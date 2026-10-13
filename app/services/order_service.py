@@ -31,11 +31,17 @@ def verify_password(password: str, password_hash: str | None) -> bool:
 
 def register_customer(customer_name: str, mobile_no: str, email: str | None, address: str | None, password: str | None = None):
     with get_connection() as connection:
-        customer = connection.execute("SELECT registration_no FROM bus_registration WHERE mobile_no = ?", (mobile_no.strip(),)).fetchone()
+        customer = connection.execute("SELECT registration_no, active_status FROM bus_registration WHERE mobile_no = ?", (mobile_no.strip(),)).fetchone()
         if customer:
+            if customer["active_status"] is None:
+                connection.execute(
+                    "UPDATE bus_registration SET active_status = 'Y' WHERE registration_no = ? AND active_status IS NULL",
+                    (customer["registration_no"],),
+                )
+                return customer["registration_no"], False
             raise OrderError("Already registered with this mobile number.")
         registration_no = _number("CUS")
-        connection.execute("INSERT INTO bus_registration (registration_no, customer_name, mobile_no, email, present_address, password_hash) VALUES (?, ?, ?, ?, ?, ?)", (registration_no, customer_name.strip(), mobile_no.strip(), email, address, _hash_password(password) if password else None))
+        connection.execute("INSERT INTO bus_registration (registration_no, customer_name, mobile_no, email, present_address, password_hash, active_status) VALUES (?, ?, ?, ?, ?, ?, 'Y')", (registration_no, customer_name.strip(), mobile_no.strip(), email, address, _hash_password(password) if password else None))
         return registration_no, True
 
 
@@ -83,7 +89,7 @@ def create_order(mobile_no: str, store_no: str, lines: list[dict], delivery_addr
         subtotal = sum(line[3] * line[2] for line in prepared)
         discount = sum(line[4] for line in prepared)
         order_no = _number("ORD")
-        connection.execute("""INSERT INTO order_master (order_no, registration_no, wsm_store_no, subtotal, discount_amount, payable_amount, delivery_address, customer_name_snapshot, customer_mobile_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", (order_no, customer["registration_no"], store_no, subtotal, discount, subtotal - discount, delivery_address or customer["present_address"], customer["customer_name"], customer["mobile_no"]))
+        connection.execute("""INSERT INTO order_master (order_no, registration_no, wsm_store_no, subtotal, discount_amount, payable_amount, delivery_address, customer_name_snapshot, customer_mobile_snapshot,order_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)""", (order_no, customer["registration_no"], store_no, subtotal, discount, subtotal - discount, delivery_address or customer["present_address"], customer["customer_name"], customer["mobile_no"],'PENDING'))
         connection.executemany("""INSERT INTO order_details (order_no, item_no, item_name_snapshot, quantity, unit_price, discount_amount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)""", [(order_no, *line) for line in prepared])
     return get_order(order_no)
 

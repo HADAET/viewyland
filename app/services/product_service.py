@@ -24,9 +24,13 @@ CATEGORY_ICONS = ["clock", "lamp", "mirror", "vase"]
 # prices, images or flash sales so the site shows fresh data.
 # NOTE: cached objects are shared - callers must not mutate them.
 
-PRODUCT_CACHE_TTL = 60   # seconds
-FLASH_CACHE_TTL = 30     # seconds
-CATEGORY_CACHE_TTL = 60  # seconds
+#PRODUCT_CACHE_TTL = 60   # seconds
+#FLASH_CACHE_TTL = 30     # seconds
+#CATEGORY_CACHE_TTL = 60  # seconds
+
+PRODUCT_CACHE_TTL = 12 * 3600   # 6 ghonta (age 60 second chilo)
+FLASH_CACHE_TTL = 1500          # 5 minute (age 30 second)
+CATEGORY_CACHE_TTL = 12 * 3600  # 6 ghonta
 
 _cache_lock = Lock()
 _products_cache = {"t": 0.0, "data": None}
@@ -211,6 +215,19 @@ def refresh_product_cache():
     return products
 import random
 
+def get_products_page(
+    page: int = 1,
+    per_page: int = 15,
+    category: str | None = None,
+    search: str | None = None,
+):
+    """Return one page of products from the in-memory cache (no extra DB query)."""
+    items = get_products(category=category, search=search)
+    total = len(items)
+    total_pages = max((total + per_page - 1) // per_page, 1)
+    page = min(max(page, 1), total_pages)
+    start = (page - 1) * per_page
+    return items[start:start + per_page], total, page, total_pages
 
 def get_mixed_products(limit: int = 24, per_category: int = 3):
     """Pick up to `per_category` random products from each category,

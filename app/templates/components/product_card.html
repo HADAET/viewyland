@@ -8,7 +8,7 @@
     <a class="product-art-link" href="{{ url_for('product_detail', item_no=product.id) }}" aria-label="View {{ product.name }}">
       {% if product.images and product.images[0].url %}
         <!-- Show product image if available -->
-        <img src="{{ product.images[0].url }}" alt="{{ product.name }}" class="product-img">
+        <img src="{{ product.images[0].url }}" alt="{{ product.name }}" class="product-img" loading="lazy" decoding="async">
       {% else %}
         <!-- Fallback to default tone/type shapes if image table is null/empty -->
         <div class="object {{ product.type }}" aria-hidden="true"><i></i><b></b><em></em></div>

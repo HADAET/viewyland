@@ -5,6 +5,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import PlainTextResponse
 
 from app.db.database import initialize_database, get_connection
 from app.routers import admin, auth, cart, checkout, home, products
@@ -34,7 +36,7 @@ def _warm_cache():
 def _cache_refresher():
     while True:
         #time.sleep(45)  # must be less than PRODUCT_CACHE_TTL (60)
-        time.sleep(3600)
+        time.sleep(21000)
 
         try:
             #_warm_cache()
@@ -75,6 +77,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Serve static files using an absolute path
 app.mount(
@@ -100,3 +103,14 @@ def ping():
 @app.get("/test-speed")
 async def test_speed():
     return {"ok": True}
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots():
+    return (
+        "User-agent: *\n"
+        "Disallow: /admin\n"
+        "Disallow: /cart\n"
+        "Disallow: /auth\n"
+        "Disallow: /checkout\n"
+        "Crawl-delay: 10\n"
+    )

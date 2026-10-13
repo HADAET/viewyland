@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import psycopg2
 
+from app.services.product_service import clear_product_cache
+
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -1388,6 +1390,8 @@ async def add_row(
                 detail=f"Could not add row: {error}",
             ) from error
 
+    clear_product_cache()
+
     return RedirectResponse(
         f"/admin?table={table_name}",
         status_code=303,
@@ -1519,7 +1523,7 @@ async def update_row(
                     status_code=400,
                     detail=f"Could not update row: {error}",
                 ) from error
-
+    clear_product_cache()
     return RedirectResponse(
         f"/admin?table={table_name}",
         status_code=303,
@@ -1566,7 +1570,7 @@ async def delete_row(
             """,
             where_values,
         )
-
+    clear_product_cache()
     return RedirectResponse(
         f"/admin?table={table_name}",
         status_code=303,
@@ -1663,7 +1667,7 @@ async def create_item(
                 stock,
             ),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin",
         status_code=303,
@@ -1705,7 +1709,7 @@ async def add_image(
                 display_order,
             ),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin",
         status_code=303,
@@ -1736,7 +1740,7 @@ async def delete_image(
             """,
             (image_id,),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin",
         status_code=303,
@@ -1781,7 +1785,7 @@ async def create_flash_sale(
                 ends_on,
             ),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin",
         status_code=303,
@@ -1812,7 +1816,7 @@ async def delete_flash_sale(
             """,
             (sale_id,),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin",
         status_code=303,
@@ -1862,7 +1866,7 @@ async def update_order_status(
                 order_no,
             ),
         )
-
+    clear_product_cache()
     return RedirectResponse(
         "/admin/orders",
         status_code=303,
