@@ -3,8 +3,12 @@
   const searchToggle = document.querySelector('[data-search-toggle]');
   const searchForm = document.querySelector('[data-search-form]');
 
-  document.querySelectorAll('[data-add-to-cart]').forEach((button) => {
+  document.querySelectorAll('[data-add-to-cart], [data-order-now]').forEach((button) => {
     button.addEventListener('click', async () => {
+      if (button.hasAttribute('data-order-now')) {
+        window.location.href = `/cart?buy_now=${encodeURIComponent(button.dataset.orderNow)}`;
+        return;
+      }
       if (button.disabled) return;
       button.disabled = true;
       try {
@@ -18,7 +22,7 @@
         if (badge) badge.textContent = data.cart_count;
         button.classList.add('is-added');
         button.textContent = '✓';
-        setTimeout(() => { button.textContent = '+'; button.classList.remove('is-added'); button.disabled = false; }, 1200);
+        setTimeout(() => { button.textContent = 'Add to Cart'; button.classList.remove('is-added'); button.disabled = false; }, 1200);
       } catch (error) {
         button.disabled = false;
         button.setAttribute('aria-label', 'Unable to add item');
@@ -42,6 +46,19 @@
       if (response.ok) window.location.reload();
       else button.disabled = false;
     });
+  });
+
+  document.querySelectorAll('[data-buy-now-change]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const quantity = Number(button.dataset.quantity);
+      const itemNo = button.dataset.buyNowChange;
+      if (!itemNo || quantity < 1 || quantity > 99) return;
+      window.location.href = `/cart?buy_now=${encodeURIComponent(itemNo)}&quantity=${quantity}`;
+    });
+  });
+
+  document.querySelector('[data-buy-now-remove]')?.addEventListener('click', () => {
+    window.location.href = '/cart';
   });
 
   const confirmOpen = document.querySelector('[data-confirm-open]');

@@ -11,7 +11,6 @@
           <p class="eyebrow">{{ banner.eyebrow }}</p>
           <h1>{{ banner.title }}</h1>
           {# banner['copy'] not banner.copy: banner.copy is dict's built-in copy() method #}
-          <p class="banner-text">{{ banner['copy'] }}</p>
           <a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a>
         </div>
         <!-- old code home spin image
@@ -55,16 +54,18 @@
 
   <!-- ===== CATEGORIES: same as current new design (kept) ===== -->
   <section class="home-section home-collections" id="collections">
-    <div class="home-section-heading"><div><p class="eyebrow">Find your style</p><h2>Explore our collections</h2></div><a class="home-link" href="/products">View all <span>&rarr;</span></a></div>
+    <div class="home-section-heading"><div><p class="eyebrow">Find your style</p><h4>Explore our collections</h4></div><a class="home-link" href="/products">View all <span>&rarr;</span></a></div>
+    <div class="featured-collections-viewport" data-category-carousel>
     <div class="featured-collections">
-      {% for category in categories[:6] %}
+      {% for category in categories if category.image %}
       <a class="featured-collection" href="/products?category={{ category.name|urlencode }}">
+        {% if category.image %}<img class="category-image" src="{{ category.image }}" alt="" loading="lazy" decoding="async">{% endif %}
         <span class="collection-number">0{{ loop.index }}</span>
-        <span class="category-icon {{ category.icon }}"><i></i><b></b></span>
         <strong>{{ category.name }}</strong>
         <small>Explore collection <span>&rarr;</span></small>
       </a>
       {% endfor %}
+    </div>
     </div>
   </section>
 

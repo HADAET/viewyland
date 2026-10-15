@@ -63,6 +63,82 @@
     });
   }
 
+  const createItemPicker = (existingValue) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'db-searchable-select';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'db-item-search';
+    search.placeholder = 'Search item name or code...';
+    search.autocomplete = 'off';
+    search.setAttribute('role', 'combobox');
+    search.setAttribute('aria-expanded', 'false');
+    search.setAttribute('aria-autocomplete', 'list');
+    search.required = true;
+    const selected = document.createElement('input');
+    selected.type = 'hidden';
+    selected.name = 'item_no';
+    const list = document.createElement('div');
+    list.className = 'db-item-options';
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    const items = window.viewylandAdminItems || [];
+
+    const choose = (item) => {
+      selected.value = item.item_no;
+      search.value = `${item.item_name} (${item.item_no})`;
+      search.setCustomValidity('');
+      list.hidden = true;
+      search.setAttribute('aria-expanded', 'false');
+    };
+    const render = () => {
+      const term = search.value.trim().toLocaleLowerCase();
+      const matches = items.filter((item) => `${item.item_name} ${item.item_no}`.toLocaleLowerCase().includes(term)).slice(0, 80);
+      list.replaceChildren();
+      matches.forEach((item) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'db-item-option';
+        option.setAttribute('role', 'option');
+        option.textContent = `${item.item_name} (${item.item_no})`;
+        option.addEventListener('click', () => choose(item));
+        list.append(option);
+      });
+      if (!matches.length) {
+        const empty = document.createElement('div');
+        empty.className = 'db-item-no-results';
+        empty.textContent = 'No matching items';
+        list.append(empty);
+      }
+    };
+
+    search.addEventListener('focus', () => { render(); list.hidden = false; search.setAttribute('aria-expanded', 'true'); });
+    search.addEventListener('input', () => {
+      selected.value = '';
+      search.setCustomValidity('Select an item from the list.');
+      render();
+      list.hidden = false;
+      search.setAttribute('aria-expanded', 'true');
+    });
+    search.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { list.hidden = true; search.setAttribute('aria-expanded', 'false'); }
+      if (event.key === 'ArrowDown') { event.preventDefault(); list.querySelector('button')?.focus(); }
+    });
+    list.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { list.hidden = true; search.setAttribute('aria-expanded', 'false'); search.focus(); }
+      if (event.key === 'ArrowDown') { event.preventDefault(); event.target.nextElementSibling?.focus(); }
+      if (event.key === 'ArrowUp') { event.preventDefault(); event.target.previousElementSibling?.focus() || search.focus(); }
+    });
+    document.addEventListener('click', (event) => {
+      if (!wrapper.contains(event.target)) { list.hidden = true; search.setAttribute('aria-expanded', 'false'); }
+    });
+
+    wrapper.append(search, selected, list);
+    const current = items.find((item) => item.item_no === existingValue);
+    if (current) choose(current);
+    return wrapper;
+  };
+
   const openEditor = (button) => {
     const mode = button.dataset.mode;
     const table = button.dataset.table;
@@ -75,7 +151,7 @@
     columns.forEach((column) => {
       if (column.virtual) return;
       if (mode === 'edit' && column.pk) return;
-      if (mode === 'add' && (column.auto_id || (column.pk && column.type.toUpperCase().includes('INTEGER')))) return;
+      if (mode === 'add' && (column.is_identity || column.auto_id || (column.pk && column.type.toUpperCase().includes('INTEGER')))) return;
       
       if (table === 'item_image' && column.name === 'image_url') {
         const group = document.createElement('label');
@@ -137,10 +213,12 @@
         if (existingValue) input.value = String(existingValue).replace(' ', 'T').slice(0, 16);
         else if (mode === 'add') input.value = new Date().toISOString().slice(0, 16);
       } else if (column.name === 'item_no' && window.viewylandAdminItems?.length) {
-        input = document.createElement('select');
-        window.viewylandAdminItems.forEach((item) => {
-          input.add(new Option(`${item.item_name} (${item.item_no})`, item.item_no, false, item.item_no === existingValue));
-        });
+        const picker = createItemPicker(existingValue);
+        picker.querySelector('input[type="hidden"]').name = column.name;
+        if (column.notnull) picker.querySelector('.db-item-search').required = true;
+        label.append(picker);
+        fields.append(label);
+        return;
       } else if (column.name === 'item_category' && window.viewylandAdminCategories?.length) {
         input = document.createElement('select');
         window.viewylandAdminCategories.forEach((category) => input.add(new Option(category, category, false, category === existingValue)));

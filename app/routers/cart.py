@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.services.cart_service import COOKIE_NAME, add_to_cart, cart_count, cart_lines, update_cart
 from app.routers.auth import AUTH_COOKIE
 from app.services.order_service import OrderError, confirm_order, create_order, get_customer_by_registration,get_customer_by_mobile, register_customer
+from app.services.product_service import get_product
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,14 +23,24 @@ class ConfirmCartPayload(BaseModel):
 	customer_name: str = Field(min_length=2, max_length=50)
 	mobile_no: str = Field(min_length=7, max_length=25)
 	address: str | None = Field(default=None, max_length=200)
+	buy_now_item_no: str | None = Field(default=None, min_length=1, max_length=16)
+	buy_now_quantity: int = Field(default=1, ge=1, le=99)
 
 
 @router.get("", name="cart")
-async def cart_page(request: Request):
-	lines = cart_lines(request.cookies.get(COOKIE_NAME))
+async def cart_page(request: Request, buy_now: str | None = None, quantity: int = 1):
+	buy_now_product = get_product(buy_now) if buy_now else None
+	if buy_now and not buy_now_product:
+		raise HTTPException(status_code=404, detail="Product not found")
+	quantity = min(max(quantity, 1), 99)
+	lines = (
+		[{"product": buy_now_product, "quantity": quantity, "total": buy_now_product["price"] * quantity}]
+		if buy_now_product
+		else cart_lines(request.cookies.get(COOKIE_NAME))
+	)
 	total = sum(line["total"] for line in lines)
 	customer = get_customer_by_registration(request.cookies.get(AUTH_COOKIE, "")) if request.cookies.get(AUTH_COOKIE) else None
-	return templates.TemplateResponse(request=request, name="cart.html", context={"lines": lines, "total": total, "customer": customer, "cart_count": cart_count(request.cookies.get(COOKIE_NAME))})
+	return templates.TemplateResponse(request=request, name="cart.html", context={"lines": lines, "total": total, "customer": customer, "cart_count": cart_count(request.cookies.get(COOKIE_NAME)), "buy_now_item_no": buy_now_product["id"] if buy_now_product else None})
 
 
 @router.post("/items")
@@ -77,7 +88,13 @@ async def change_item(request: Request, payload: CartItemPayload):
 
 @router.post("/confirm")
 async def confirm_cart(request: Request, payload: ConfirmCartPayload):
-	lines = cart_lines(request.cookies.get(COOKIE_NAME))
+	lines = (
+		[{"product": get_product(payload.buy_now_item_no), "quantity": payload.buy_now_quantity}]
+		if payload.buy_now_item_no
+		else cart_lines(request.cookies.get(COOKIE_NAME))
+	)
+	if payload.buy_now_item_no and not lines[0]["product"]:
+		raise HTTPException(status_code=404, detail="Product not found")
 	if not lines:
 		raise HTTPException(status_code=400, detail="Your cart is empty.")
 
@@ -110,7 +127,8 @@ async def confirm_cart(request: Request, payload: ConfirmCartPayload):
 		"order_no": confirmed["order"]["order_no"],
 		"payable_amount": confirmed["order"]["payable_amount"],
 	})
-	response.delete_cookie(COOKIE_NAME)
+	if not payload.buy_now_item_no:
+		response.delete_cookie(COOKIE_NAME)
 
 	if auto_login_registration_no:
 		response.set_cookie(

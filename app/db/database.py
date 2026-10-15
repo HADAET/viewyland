@@ -190,8 +190,6 @@ class DebugCursor:
         query,
         params=None,
     ):
-        started = time.perf_counter()
-
         try:
 
             self.cursor = self.connection.cursor(
@@ -214,17 +212,6 @@ class DebugCursor:
                     postgres_query,
                     params,
                 )
-
-            elapsed = (
-                time.perf_counter()
-                - started
-            ) * 1000
-
-            print(
-                "[SQL DEBUG] "
-                f"{elapsed:.2f} ms | "
-                f"{query.strip()[:300]}"
-            )
 
             return self
 
@@ -469,8 +456,6 @@ class DatabaseConnection:
         params_list,
     ):
 
-        started = time.perf_counter()
-
         cursor = None
 
         try:
@@ -487,17 +472,6 @@ class DatabaseConnection:
             )
 
             self._queries_run += 1
-
-            elapsed = (
-                time.perf_counter()
-                - started
-            ) * 1000
-
-            print(
-                "[SQL DEBUG] "
-                f"{elapsed:.2f} ms | executemany | "
-                f"{query.strip()[:300]}"
-            )
 
             return self
 

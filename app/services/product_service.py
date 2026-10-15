@@ -1,5 +1,7 @@
 import time
 from threading import Lock
+from pathlib import Path
+from urllib.parse import quote
 
 from app.db.database import get_connection
 from app.db.queries import PRODUCT_SELECT
@@ -13,6 +15,7 @@ CATEGORY_DETAILS = {
 }
 
 CATEGORY_ICONS = ["clock", "lamp", "mirror", "vase"]
+CATEGORY_IMAGE_DIR = Path(__file__).resolve().parent.parent / "static" / "uploads" / "items"
 
 
 # =========================================================
@@ -55,6 +58,11 @@ def clear_product_cache():
 # =========================================================
 
 def _load_categories():
+    category_images = {
+        image.stem.casefold(): image
+        for image in CATEGORY_IMAGE_DIR.iterdir()
+        if image.is_file()
+    } if CATEGORY_IMAGE_DIR.exists() else {}
     with get_connection() as connection:
         rows = connection.execute(
             """SELECT DISTINCT item_category
@@ -67,10 +75,12 @@ def _load_categories():
     for index, row in enumerate(rows):
         name = row["item_category"]
         description = CATEGORY_DETAILS.get(name, ("Curated pieces for your home.", ""))[0]
+        image = category_images.get(str(name).casefold())
         categories.append({
             "name": name,
             "description": description,
             "icon": CATEGORY_ICONS[index % len(CATEGORY_ICONS)],
+            "image": f"/static/uploads/items/{quote(image.name)}" if image else None,
         })
     return categories
 

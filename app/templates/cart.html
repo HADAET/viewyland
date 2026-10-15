@@ -20,13 +20,19 @@
             {% endif %}
           </div>
           <div>
-            <h2>{{ line.product.name }}</h2>
-            <p>{{ line.product.description }}</p>
+            <h3>{{ line.product.name }}</h3>
             <div class="cart-quantity">
+              {% if buy_now_item_no %}
+              <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity" {% if line.quantity <= 1 %}disabled{% endif %}>&minus;</button>
+              <span>Qty {{ line.quantity }}</span>
+              <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity" {% if line.quantity >= 99 %}disabled{% endif %}>+</button>
+              <button class="cart-remove" type="button" data-buy-now-remove>Remove</button>
+              {% else %}
               <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity">&minus;</button>
               <span>Qty {{ line.quantity }}</span>
               <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity">+</button>
               <button class="cart-remove" type="button" data-cart-change="{{ line.product.id }}" data-quantity="0">Remove</button>
+              {% endif %}
             </div>
           </div>
           <strong>{{ line.product.currency }} {{ '%.2f'|format(line.total) }}</strong>
@@ -42,6 +48,7 @@
     </div>
 
     <form class="order-login" data-confirm-form hidden>
+      {% if buy_now_item_no %}<input type="hidden" name="buy_now_item_no" value="{{ buy_now_item_no }}"><input type="hidden" name="buy_now_quantity" value="{{ lines[0].quantity }}">{% endif %}
       <div>
         <p class="eyebrow">{% if customer %}Ready to order{% else %}Login or register{% endif %}</p>
         <h2>Almost yours.</h2>

@@ -15,7 +15,6 @@
       {% endif %}
     </a>
 
-    <button class="quick-add" type="button" data-add-to-cart="{{ product.id }}" aria-label="Add {{ product.name }} to bag">+</button>
   </div>
 
   <div class="product-info">
@@ -28,5 +27,9 @@
         {% endif %}
       </div>
     </div>
+  </div>
+  <div class="product-card-actions">
+      <button class="product-card-action add-to-cart-action" type="button" data-add-to-cart="{{ product.id }}" aria-label="Add {{ product.name }} to cart">Add to Cart</button>
+      <button class="product-card-action order-now-action" type="button" data-order-now="{{ product.id }}" aria-label="Order {{ product.name }} now">Order Now</button>
   </div>
 </article>

@@ -11,6 +11,7 @@ import psycopg2
 from app.services.product_service import clear_product_cache
 
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -189,6 +190,7 @@ def table_columns(
             SELECT
                 c.column_name AS name,
                 UPPER(c.data_type) AS type,
+                c.is_identity AS is_identity,
 
                 CASE
                     WHEN c.is_nullable = 'NO'
@@ -245,6 +247,9 @@ def table_columns(
     )
 
     for column in columns:
+        column["is_identity"] = (
+            str(column.get("is_identity", "NO")).upper() == "YES"
+        )
         column["auto_id"] = (
             column["name"] == auto_id_name
         )
@@ -667,12 +672,27 @@ def table_rows(
 
     real_columns = [c for c in columns if not c.get("virtual")]
 
-    base_sql = f"""
-        SELECT
-            {pk_column} AS _rowid_,
-            *
-        FROM {table_name}
-    """
+    has_virtual_item_name = any(
+        column.get("virtual") and column["name"] == "item_name"
+        for column in columns
+    )
+    if has_virtual_item_name:
+        base_sql = f"""
+            SELECT
+                {pk_column} AS _rowid_,
+                {table_name}.*,
+                search_product.item_name AS item_name
+            FROM {table_name}
+            LEFT JOIN bus_item_master AS search_product
+                ON search_product.item_no = {table_name}.item_no
+        """
+    else:
+        base_sql = f"""
+            SELECT
+                {pk_column} AS _rowid_,
+                *
+            FROM {table_name}
+        """
 
     rows, total = _search_sort_paginate(
         connection,
@@ -680,7 +700,7 @@ def table_rows(
         searchable_columns=[
             c["name"] for c in real_columns
             if c["type"].upper() in TEXT_COLUMN_TYPES
-        ],
+        ] + (["item_name"] if has_virtual_item_name else []),
         sortable_columns={c["name"]: c["name"] for c in real_columns},
         default_sort=f"{pk_column} DESC",
         search=search,
@@ -905,6 +925,10 @@ async def dashboard(
             page=page,
             page_size=page_size,
         )
+
+        # Database rows may contain Decimal/date values, which Jinja's
+        # tojson filter cannot serialize when embedding them in editor data.
+        rows = jsonable_encoder(rows)
 
         # ONE query instead of 14 COUNT queries.
         table_counts = get_table_counts(
@@ -1298,6 +1322,7 @@ async def add_row(
             column["name"]
             for column in column_defs
             if not column.get("virtual")
+            and not column.get("is_identity")
         }
 
         date_columns = {
@@ -1432,6 +1457,7 @@ async def update_row(
                 table_name,
             )
             if not column["pk"] and not column.get("virtual")
+            and not column.get("is_identity")
         ]
 
         column_names = {
