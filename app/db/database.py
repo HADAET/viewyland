@@ -7,7 +7,7 @@ from threading import Lock
 
 import psycopg2
 from psycopg2 import OperationalError, InterfaceError
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_batch
 from psycopg2.pool import ThreadedConnectionPool
 
 
@@ -18,9 +18,7 @@ from psycopg2.pool import ThreadedConnectionPool
 DATABASE_URL_BKP = os.getenv("DATABASE_URL_BKP")
 
 if not DATABASE_URL_BKP:
-    raise RuntimeError(
-        "DATABASE_URL_BKP environment variable is not set."
-    )
+    raise RuntimeError("DATABASE_URL_BKP environment variable is not set.")
 
 
 # =========================================================
@@ -32,11 +30,7 @@ _pool_lock = Lock()
 
 
 def _create_pool():
-    """
-    Create a fresh PostgreSQL connection pool.
-
-    The pool is created lazily.
-    """
+    """Create a fresh PostgreSQL connection pool (lazy)."""
 
     return ThreadedConnectionPool(
         minconn=1,
@@ -44,7 +38,6 @@ def _create_pool():
         dsn=DATABASE_URL_BKP,
         sslmode="require",
         connect_timeout=10,
-
         # Keep TCP connections alive.
         keepalives=1,
         keepalives_idle=30,
@@ -54,11 +47,7 @@ def _create_pool():
 
 
 def _get_pool():
-    """
-    Return the current connection pool.
-
-    If no pool exists, create one.
-    """
+    """Return the current pool, creating it if needed."""
 
     global _pool
 
@@ -66,7 +55,6 @@ def _get_pool():
         return _pool
 
     with _pool_lock:
-
         if _pool is None:
             _pool = _create_pool()
 
@@ -74,21 +62,15 @@ def _get_pool():
 
 
 def _reset_pool():
-    """
-    Completely discard the current pool.
-
-    Used when PostgreSQL/Neon connections are no longer usable.
-    """
+    """Discard the current pool (used when connections are unusable)."""
 
     global _pool
 
     with _pool_lock:
-
         old_pool = _pool
         _pool = None
 
         if old_pool is not None:
-
             try:
                 old_pool.closeall()
             except Exception:
@@ -100,18 +82,9 @@ def _reset_pool():
 # =========================================================
 
 def _is_connection_error(error: Exception) -> bool:
-    """
-    Detect errors that indicate the PostgreSQL connection
-    itself is no longer usable.
-    """
+    """Detect errors that mean the PostgreSQL connection is unusable."""
 
-    if isinstance(
-        error,
-        (
-            OperationalError,
-            InterfaceError,
-        ),
-    ):
+    if isinstance(error, (OperationalError, InterfaceError)):
         return True
 
     message = str(error).lower()
@@ -133,10 +106,7 @@ def _is_connection_error(error: Exception) -> bool:
         "network is unreachable",
     )
 
-    return any(
-        text in message
-        for text in connection_messages
-    )
+    return any(text in message for text in connection_messages)
 
 
 # =========================================================
@@ -145,17 +115,8 @@ def _is_connection_error(error: Exception) -> bool:
 
 def _convert_query(query: str) -> str:
     """
-    Existing project code uses SQLite-style '?' placeholders.
-
-    psycopg2/PostgreSQL requires '%s'.
-
-    Example:
-
-        WHERE item_no=?
-
-    becomes:
-
-        WHERE item_no=%s
+    Project code uses SQLite-style '?' placeholders.
+    psycopg2 needs '%s'.
     """
 
     return query.replace("?", "%s")
@@ -167,119 +128,59 @@ def _convert_query(query: str) -> str:
 
 class DebugCursor:
     """
-    Small cursor wrapper.
-
-    It preserves the existing project style:
+    Small cursor wrapper preserving:
 
         connection.execute(...).fetchall()
         connection.execute(...).fetchone()
-
-    while internally using psycopg2.
     """
 
     def __init__(self, connection):
         self.connection = connection
         self.cursor = None
 
-    # -----------------------------------------------------
-    # EXECUTE
-    # -----------------------------------------------------
-
-    def execute(
-        self,
-        query,
-        params=None,
-    ):
+    def execute(self, query, params=None):
         try:
+            self.cursor = self.connection.cursor(cursor_factory=RealDictCursor)
 
-            self.cursor = self.connection.cursor(
-                cursor_factory=RealDictCursor
-            )
-
-            postgres_query = _convert_query(
-                query
-            )
+            postgres_query = _convert_query(query)
 
             if params is None:
-
-                self.cursor.execute(
-                    postgres_query
-                )
-
+                self.cursor.execute(postgres_query)
             else:
-
-                self.cursor.execute(
-                    postgres_query,
-                    params,
-                )
+                self.cursor.execute(postgres_query, params)
 
             return self
 
         except Exception:
-
             if self.cursor is not None:
-
                 try:
                     self.cursor.close()
                 except Exception:
                     pass
-
                 self.cursor = None
-
             raise
 
-    # -----------------------------------------------------
-    # FETCH ONE
-    # -----------------------------------------------------
-
     def fetchone(self):
-
         if self.cursor is None:
-            raise RuntimeError(
-                "fetchone() called before execute()."
-            )
-
+            raise RuntimeError("fetchone() called before execute().")
         return self.cursor.fetchone()
 
-    # -----------------------------------------------------
-    # FETCH ALL
-    # -----------------------------------------------------
-
     def fetchall(self):
-
         if self.cursor is None:
-            raise RuntimeError(
-                "fetchall() called before execute()."
-            )
-
+            raise RuntimeError("fetchall() called before execute().")
         return self.cursor.fetchall()
 
-    # -----------------------------------------------------
-    # ITERATION
-    # -----------------------------------------------------
-
     def __iter__(self):
-
         if self.cursor is None:
-            raise RuntimeError(
-                "Iteration started before execute()."
-            )
-
+            raise RuntimeError("Iteration started before execute().")
         return iter(self.cursor)
 
-    # -----------------------------------------------------
-    # CLOSE
-    # -----------------------------------------------------
-
     def close(self):
-
         if self.cursor is not None:
-
             try:
                 self.cursor.close()
             except Exception:
                 pass
-
             self.cursor = None
 
 
@@ -289,75 +190,42 @@ class DebugCursor:
 
 class DatabaseConnection:
     """
-    Wrapper around psycopg2 connection.
+    Wrapper around a psycopg2 connection.
 
-    Existing application code can continue using:
+    Existing application code can keep using:
 
         connection.execute(...)
     """
 
-    def __init__(
-        self,
-        connection,
-        pool,
-    ):
-
+    def __init__(self, connection, pool):
         self.connection = connection
         self.pool = pool
         self._broken = False
 
-        # Counts queries that have actually succeeded on the CURRENT
-        # underlying connection. Used to decide whether it's safe to
-        # transparently swap in a fresh connection and retry: if this
-        # is the very first query and it failed because the pool handed
-        # us an already-dead connection (Neon/idle-suspend killed it),
-        # nothing has happened yet, so a silent retry is safe. If a
-        # later query in the same transaction dies, we do NOT retry
-        # here — the transaction already has state and must be re-run
-        # by the caller, not silently restarted mid-way.
+        # Number of queries that succeeded on the CURRENT connection.
+        # If the very first query fails with a connection error (e.g.
+        # Neon silently closed an idle pooled connection), nothing has
+        # happened yet, so a transparent retry on a fresh connection
+        # is safe. Later failures are NOT retried here.
         self._queries_run = 0
 
     # -----------------------------------------------------
     # EXECUTE
     # -----------------------------------------------------
 
-    def execute(
-        self,
-        query,
-        params=None,
-    ):
+    def execute(self, query, params=None):
 
         started = time.perf_counter()
 
         try:
-
-            cursor = DebugCursor(
-                self.connection
-            )
-
-            result = cursor.execute(
-                query,
-                params,
-            )
-
+            cursor = DebugCursor(self.connection)
+            result = cursor.execute(query, params)
             self._queries_run += 1
-
             return result
 
         except Exception as error:
 
             if _is_connection_error(error) and self._queries_run == 0:
-
-                # -------------------------------------------------
-                # TRANSPARENT RETRY
-                # -------------------------------------------------
-                # This is the first query on this connection and it
-                # died on us before doing anything — almost always
-                # because the pool handed us a connection that Neon
-                # had already silently closed (autosuspend / idle
-                # timeout). Nothing has happened yet, so it's safe to
-                # swap in a fresh connection and retry once, silently.
-                # -------------------------------------------------
 
                 print(
                     "[DB WARNING] "
@@ -366,45 +234,29 @@ class DatabaseConnection:
                 )
 
                 try:
-                    self.pool.putconn(
-                        self.connection,
-                        close=True,
-                    )
+                    self.pool.putconn(self.connection, close=True)
                 except Exception:
                     pass
 
                 self.connection = self.pool.getconn()
 
                 try:
-
-                    cursor = DebugCursor(
-                        self.connection
-                    )
-
-                    result = cursor.execute(
-                        query,
-                        params,
-                    )
-
+                    cursor = DebugCursor(self.connection)
+                    result = cursor.execute(query, params)
                     self._queries_run += 1
 
-                    print(
-                        "[DB DEBUG] "
-                        "Retry succeeded on fresh connection."
-                    )
+                    print("[DB DEBUG] Retry succeeded on fresh connection.")
 
                     return result
 
                 except Exception as retry_error:
 
                     if _is_connection_error(retry_error):
-
                         print(
                             "[DB WARNING] "
                             "PostgreSQL connection is dead. "
                             "Discarding connection."
                         )
-
                         self._broken = True
 
                         try:
@@ -415,13 +267,11 @@ class DatabaseConnection:
                     raise
 
             if _is_connection_error(error):
-
                 print(
                     "[DB WARNING] "
                     "PostgreSQL connection is dead. "
                     "Discarding connection."
                 )
-
                 self._broken = True
 
                 try:
@@ -432,47 +282,40 @@ class DatabaseConnection:
             raise
 
         finally:
-
-            elapsed = (
-                time.perf_counter()
-                - started
-            ) * 1000
+            elapsed = (time.perf_counter() - started) * 1000
 
             if elapsed > 1000:
-
-                print(
-                    "[DB DEBUG] "
-                    "execute took "
-                    f"{elapsed:.2f} ms"
-                )
+                print(f"[DB DEBUG] execute took {elapsed:.2f} ms")
 
     # -----------------------------------------------------
     # EXECUTEMANY
     # -----------------------------------------------------
 
-    def executemany(
-        self,
-        query,
-        params_list,
-    ):
+    def executemany(self, query, params_list):
+
+        # FIX: `started` must be defined before the try/finally,
+        # because the finally block always uses it.
+        started = time.perf_counter()
 
         cursor = None
 
-        try:
+        # FIX: convert before try so it is always defined in the
+        # retry branch below.
+        postgres_query = _convert_query(query)
 
+        try:
             cursor = self.connection.cursor()
 
-            postgres_query = _convert_query(
-                query
-            )
-
-            cursor.executemany(
+            # execute_batch sends rows in pages -> far fewer network
+            # round trips than plain cursor.executemany().
+            execute_batch(
+                cursor,
                 postgres_query,
                 params_list,
+                page_size=100,
             )
 
             self._queries_run += 1
-
             return self
 
         except Exception as error:
@@ -494,37 +337,31 @@ class DatabaseConnection:
                 )
 
                 try:
-                    self.pool.putconn(
-                        self.connection,
-                        close=True,
-                    )
+                    self.pool.putconn(self.connection, close=True)
                 except Exception:
                     pass
 
                 self.connection = self.pool.getconn()
 
                 try:
-
                     cursor = self.connection.cursor()
 
-                    cursor.executemany(
+                    execute_batch(
+                        cursor,
                         postgres_query,
                         params_list,
+                        page_size=100,
                     )
 
                     self._queries_run += 1
 
-                    print(
-                        "[DB DEBUG] "
-                        "Retry succeeded on fresh connection."
-                    )
+                    print("[DB DEBUG] Retry succeeded on fresh connection.")
 
                     return self
 
                 except Exception as retry_error:
 
                     if _is_connection_error(retry_error):
-
                         self._broken = True
 
                         try:
@@ -534,22 +371,12 @@ class DatabaseConnection:
 
                     raise
 
-                finally:
-
-                    if cursor is not None:
-                        try:
-                            cursor.close()
-                        except Exception:
-                            pass
-
             if _is_connection_error(error):
-
                 print(
                     "[DB WARNING] "
                     "PostgreSQL connection is dead. "
                     "Discarding connection."
                 )
-
                 self._broken = True
 
                 try:
@@ -562,39 +389,24 @@ class DatabaseConnection:
         finally:
 
             if cursor is not None:
-
                 try:
                     cursor.close()
                 except Exception:
                     pass
 
-            elapsed = (
-                time.perf_counter()
-                - started
-            ) * 1000
+            elapsed = (time.perf_counter() - started) * 1000
 
             if elapsed > 1000:
-
-                print(
-                    "[DB DEBUG] "
-                    "executemany took "
-                    f"{elapsed:.2f} ms"
-                )
+                print(f"[DB DEBUG] executemany took {elapsed:.2f} ms")
 
     # -----------------------------------------------------
-    # COMMIT
+    # COMMIT / ROLLBACK
     # -----------------------------------------------------
 
     def commit(self):
-
         self.connection.commit()
 
-    # -----------------------------------------------------
-    # ROLLBACK
-    # -----------------------------------------------------
-
     def rollback(self):
-
         try:
             self.connection.rollback()
         except Exception:
@@ -626,26 +438,16 @@ def get_connection():
     # -----------------------------------------------------
 
     try:
-
         get_started = time.perf_counter()
 
         connection = pool.getconn()
 
-        print(
-            "[DB DEBUG] pool.getconn: "
-            f"{(
-                time.perf_counter()
-                - get_started
-            ) * 1000:.2f} ms"
-        )
+        get_elapsed = (time.perf_counter() - get_started) * 1000
+        print(f"[DB DEBUG] pool.getconn: {get_elapsed:.2f} ms")
 
     except Exception as error:
 
-        print(
-            "[DB ERROR] "
-            "Could not get connection: "
-            f"{error}"
-        )
+        print(f"[DB ERROR] Could not get connection: {error}")
 
         _reset_pool()
 
@@ -655,46 +457,27 @@ def get_connection():
 
     # -----------------------------------------------------
     # BASIC CONNECTION CHECK
-    # -----------------------------------------------------
     #
-    # IMPORTANT:
-    #
-    # We do NOT execute SELECT 1 here.
-    #
-    # connection.closed only checks local psycopg2 state.
-    # If Neon has silently killed the SSL connection,
-    # the real query will detect it.
+    # We do NOT run SELECT 1 here. connection.closed only checks
+    # local psycopg2 state; if Neon killed the SSL connection,
+    # the real query detects it and retries transparently.
     # -----------------------------------------------------
 
     try:
-
         if connection.closed:
 
-            print(
-                "[DB WARNING] "
-                "Pool returned a closed connection. "
-                "Replacing it."
-            )
+            print("[DB WARNING] Pool returned a closed connection. Replacing it.")
 
-            pool.putconn(
-                connection,
-                close=True,
-            )
+            pool.putconn(connection, close=True)
 
             connection = pool.getconn()
 
     except Exception as error:
 
-        print(
-            "[DB WARNING] "
-            f"Connection check failed: {error}"
-        )
+        print(f"[DB WARNING] Connection check failed: {error}")
 
         try:
-            pool.putconn(
-                connection,
-                close=True,
-            )
+            pool.putconn(connection, close=True)
         except Exception:
             pass
 
@@ -704,13 +487,9 @@ def get_connection():
     # WRAP CONNECTION
     # -----------------------------------------------------
 
-    db = DatabaseConnection(
-        connection,
-        pool,
-    )
+    db = DatabaseConnection(connection, pool)
 
     try:
-
         yield db
 
         # -------------------------------------------------
@@ -720,50 +499,27 @@ def get_connection():
         commit_started = time.perf_counter()
 
         try:
-
             db.connection.commit()
 
-            print(
-                "[DB DEBUG] commit: "
-                f"{(
-                    time.perf_counter()
-                    - commit_started
-                ) * 1000:.2f} ms"
-            )
+            commit_elapsed = (time.perf_counter() - commit_started) * 1000
+            print(f"[DB DEBUG] commit: {commit_elapsed:.2f} ms")
 
         except Exception as error:
 
             if _is_connection_error(error):
-
                 broken = True
-
                 print(
                     "[DB WARNING] "
-                    "Commit failed because "
-                    "PostgreSQL connection died."
+                    "Commit failed because PostgreSQL connection died."
                 )
 
             raise
 
     except Exception as error:
 
-        # -------------------------------------------------
-        # CONNECTION ERROR
-        # -------------------------------------------------
-
         if _is_connection_error(error):
-
             broken = True
-
-            print(
-                "[DB WARNING] "
-                "Connection error detected: "
-                f"{error}"
-            )
-
-        # -------------------------------------------------
-        # ROLLBACK
-        # -------------------------------------------------
+            print(f"[DB WARNING] Connection error detected: {error}")
 
         try:
             db.connection.rollback()
@@ -774,68 +530,33 @@ def get_connection():
 
     finally:
 
-        # -------------------------------------------------
-        # DatabaseConnection.execute() may have detected
-        # a broken connection.
-        # -------------------------------------------------
-
-        if getattr(
-            db,
-            "_broken",
-            False,
-        ):
-
+        if getattr(db, "_broken", False):
             broken = True
 
-        # -------------------------------------------------
-        # RETURN CONNECTION TO POOL
-        #
-        # NOTE: db.connection may no longer be the same
-        # object as the local `connection` variable above —
-        # DatabaseConnection.execute()/executemany() silently
-        # swap it out when the pool hands back an already-dead
-        # connection and a transparent retry succeeds. We must
-        # return whichever connection db is holding NOW.
-        # -------------------------------------------------
-
+        # db.connection may differ from the local `connection`
+        # variable if a transparent retry swapped it. Always return
+        # whichever connection db holds NOW.
         connection = db.connection
 
         if connection is not None:
 
             try:
-
-                pool.putconn(
-                    connection,
-                    close=broken,
-                )
+                pool.putconn(connection, close=broken)
 
                 if broken:
-
-                    print(
-                        "[DB DEBUG] "
-                        "Broken connection discarded."
-                    )
+                    print("[DB DEBUG] Broken connection discarded.")
 
             except Exception as error:
 
-                print(
-                    "[DB WARNING] "
-                    "Could not return connection: "
-                    f"{error}"
-                )
+                print(f"[DB WARNING] Could not return connection: {error}")
 
                 try:
                     connection.close()
                 except Exception:
                     pass
 
-        print(
-            "[DB DEBUG] TOTAL connection context: "
-            f"{(
-                time.perf_counter()
-                - started
-            ) * 1000:.2f} ms"
-        )
+        total_elapsed = (time.perf_counter() - started) * 1000
+        print(f"[DB DEBUG] TOTAL connection context: {total_elapsed:.2f} ms")
 
 
 # =========================================================
@@ -844,30 +565,19 @@ def get_connection():
 
 def check_database_connection() -> bool:
     """
-    Explicit database health check.
-
-    This function DOES execute SELECT 1.
+    Explicit health check (runs SELECT 1).
 
     Do NOT call this before every normal request.
     """
 
     try:
-
         with get_connection() as connection:
-
-            connection.execute(
-                "SELECT 1"
-            ).fetchone()
+            connection.execute("SELECT 1").fetchone()
 
         return True
 
     except Exception as error:
-
-        print(
-            "[DB HEALTH] "
-            f"Database unavailable: {error}"
-        )
-
+        print(f"[DB HEALTH] Database unavailable: {error}")
         return False
 
 
@@ -879,24 +589,12 @@ def initialize_database():
     """
     Compatibility function used by app.main.
 
-    This does NOT execute SQL.
-
-    It only initializes the PostgreSQL connection pool.
+    Does NOT execute SQL; only initializes the connection pool.
     """
 
     try:
-
         _get_pool()
-
-        print(
-            "[DB INIT] "
-            "PostgreSQL connection pool initialized."
-        )
+        print("[DB INIT] PostgreSQL connection pool initialized.")
 
     except Exception as error:
-
-        print(
-            "[DB INIT WARNING] "
-            "Could not initialize PostgreSQL pool: "
-            f"{error}"
-        )
+        print(f"[DB INIT WARNING] Could not initialize PostgreSQL pool: {error}")
