@@ -2,9 +2,8 @@ from pathlib import Path
 from fastapi import APIRouter, Query, Request
 from fastapi.templating import Jinja2Templates
 
-from app.services.product_service import get_categories, get_product, get_products
 from app.services.cart_service import COOKIE_NAME, cart_count
-from app.services.product_service import get_categories, get_product, get_products_page
+from app.services.product_service import get_categories, get_product, get_products_page, get_recommended_products
 
 PER_PAGE = 15
 router = APIRouter(prefix="/products", tags=["products"])
@@ -43,4 +42,15 @@ async def product_detail_page(request: Request, item_no: str):
     if not product:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Product not found")
-    return templates.TemplateResponse(request=request, name="product_detail.html", context={"product": product, "cart_count": cart_count(request.cookies.get(COOKIE_NAME))})
+    return templates.TemplateResponse(
+        request=request,
+        name="product_detail.html",
+        context={
+            "product": product,
+            "recommended_products": get_recommended_products(
+                [product["category"]],
+                exclude_ids={product["id"]},
+            ),
+            "cart_count": cart_count(request.cookies.get(COOKIE_NAME)),
+        },
+    )

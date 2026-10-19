@@ -157,7 +157,9 @@ def get_products(category: str | None = None, search: str | None = None, limit: 
         term = search.strip().lower()
         items = [
             p for p in items
-            if term in (p["name"] or "").lower() or term in (p["description"] or "").lower()
+            if term in (p["name"] or "").lower()
+            or term in (p["description"] or "").lower()
+            or term in (p["category"] or "").lower()
         ]
 
     return items[:limit] if limit else items
@@ -170,6 +172,28 @@ def get_featured_products():
 def get_product(item_no: str):
     item_no = item_no.strip().upper()
     return next((p for p in _all_products() if p["id"] == item_no), None)
+
+
+def get_recommended_products(
+    categories: list[str],
+    exclude_ids: set[str] | None = None,
+    limit: int = 8,
+):
+    excluded = {item_no.strip().upper() for item_no in (exclude_ids or set())}
+    category_names = {category.casefold() for category in categories}
+    available = [
+        product for product in _all_products()
+        if product["id"].strip().upper() not in excluded
+    ]
+    similar = [
+        product for product in available
+        if (product["category"] or "").casefold() in category_names
+    ]
+    other = [
+        product for product in available
+        if (product["category"] or "").casefold() not in category_names
+    ]
+    return (similar + other)[:limit]
 
 
 # =========================================================

@@ -31,9 +31,14 @@
         <p class="detail-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</p>
         <p>{{ product.description }}</p>
         <p class="detail-id">Item no. {{ product.id }} &middot; Curated in Bangladesh</p>
-        <button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to bag <span>&rarr;</span></button>
+        <div class="product-detail-actions">
+            <button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to Cart <span>&rarr;</span></button>
+            <button class="button button-dark" type="button" data-order-now="{{ product.id }}">Order Now <span>&rarr;</span></button>
+        </div>
     </div>
 </section>
+
+{% include 'components/recommendations.html' %}
 
 {% if product.images %}
     <div class="image-lightbox" data-image-lightbox hidden>

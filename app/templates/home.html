@@ -7,27 +7,9 @@
     <div class="market-banner" data-banner-rotator>
       {% for banner in banners %}
       <div class="market-banner-slide {% if loop.first %}is-active{% endif %}" data-banner-slide="{{ loop.index0 }}">
-        <div class="market-banner-copy">
-          <p class="eyebrow">{{ banner.eyebrow }}</p>
-          <h1>{{ banner.title }}</h1>
-          {# banner['copy'] not banner.copy: banner.copy is dict's built-in copy() method #}
-          <a href="/products" class="button button-dark">Shop now <span>&rarr;</span></a>
-        </div>
-        <!-- old code home spin image
-        <div class="banner-art {{ banner.tone }}"{% if banner.image %} style="background-image:url('{{ banner.image }}');"{% endif %}>
-          {% if not banner.image %}<div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>{% endif %}
-        </div> -->
-        <div class="banner-art {{ banner.tone }}">
-          {% if banner.images %}
-            <div class="banner-image-row">
-              {% for img in banner.images %}
-          <div class="banner-image-cell" style="background-image:url('{{ img }}');"></div>
-              {% endfor %}
-          </div>
-        {% else %}
-       <div class="banner-orb"></div><div class="banner-object object vase"><i></i><b></b><em></em></div>
-        {% endif %}
-      </div>
+        <a class="banner-image-link" href="/products?q={{ banner.search_query|urlencode }}" aria-label="Search products for {{ banner.title }}">
+          <img src="{{ banner.image }}" alt="{{ banner.title }}" {% if not loop.first %}loading="lazy"{% endif %}>
+        </a>
       </div>
       {% endfor %}
       {% if banners|length > 1 %}

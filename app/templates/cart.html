@@ -19,7 +19,7 @@
               <div class="object {{ line.product.type }}"><i></i><b></b><em></em></div>
             {% endif %}
           </div>
-          <div>
+          <div class="cart-line-item">
             <h3>{{ line.product.name }}</h3>
             <div class="cart-quantity">
               {% if buy_now_item_no %}
@@ -34,6 +34,10 @@
               <button class="cart-remove" type="button" data-cart-change="{{ line.product.id }}" data-quantity="0">Remove</button>
               {% endif %}
             </div>
+          </div>
+          <div class="cart-line-description">
+            <span>Description</span>
+            <p>{{ line.product.description or 'No description available.' }}</p>
           </div>
           <strong>{{ line.product.currency }} {{ '%.2f'|format(line.total) }}</strong>
         </article>
@@ -60,6 +64,7 @@
       <button class="button button-dark" type="submit">Confirm order <span>&rarr;</span></button>
       <p class="order-message" data-order-message role="status"></p>
     </form>
+    {% include 'components/recommendations.html' %}
   {% else %}
     <div class="empty-state">
       <h2>Your bag is waiting.</h2>

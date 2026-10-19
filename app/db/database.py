@@ -597,4 +597,8 @@ def initialize_database():
         print("[DB INIT] PostgreSQL connection pool initialized.")
 
     except Exception as error:
+<<<<<<< HEAD
         print(f"[DB INIT WARNING] Could not initialize PostgreSQL pool: {error}")
+=======
+        print(f"[DB INIT WARNING] Could not initialize PostgreSQL pool: {error}")
+>>>>>>> 842b09a (enhancement mobile view)

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.services.cart_service import COOKIE_NAME, add_to_cart, cart_count, cart_lines, update_cart
 from app.routers.auth import AUTH_COOKIE
 from app.services.order_service import OrderError, confirm_order, create_order, get_customer_by_registration,get_customer_by_mobile, register_customer
-from app.services.product_service import get_product
+from app.services.product_service import get_product, get_recommended_products
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,7 +40,21 @@ async def cart_page(request: Request, buy_now: str | None = None, quantity: int 
 	)
 	total = sum(line["total"] for line in lines)
 	customer = get_customer_by_registration(request.cookies.get(AUTH_COOKIE, "")) if request.cookies.get(AUTH_COOKIE) else None
-	return templates.TemplateResponse(request=request, name="cart.html", context={"lines": lines, "total": total, "customer": customer, "cart_count": cart_count(request.cookies.get(COOKIE_NAME)), "buy_now_item_no": buy_now_product["id"] if buy_now_product else None})
+	return templates.TemplateResponse(
+		request=request,
+		name="cart.html",
+		context={
+			"lines": lines,
+			"total": total,
+			"customer": customer,
+			"cart_count": cart_count(request.cookies.get(COOKIE_NAME)),
+			"buy_now_item_no": buy_now_product["id"] if buy_now_product else None,
+			"recommended_products": get_recommended_products(
+				[line["product"]["category"] for line in lines],
+				exclude_ids={line["product"]["id"] for line in lines},
+			) if lines else [],
+		},
+	)
 
 
 @router.post("/items")
