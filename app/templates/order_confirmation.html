@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Order confirmed &mdash; Viewyland{% endblock %}
+{% block content %}
+<section class="order-confirmation content-section">
+  <div class="confirmation-card">
+    <div class="confirmation-mark" aria-hidden="true">&#10003;</div>
+    <p class="eyebrow">Thank you for your order</p>
+    <h1>Order confirmed.</h1>
+    <p class="confirmation-intro">We have received your order and will contact you for confirmation or customer service.</p>
+    <div class="confirmation-meta">
+      <div><span>Order number</span><strong>{{ order.order_no }}</strong></div>
+      <div><span>Status</span><strong>{{ order.status|title }}</strong></div>
+    </div>
+    <div class="confirmation-lines">
+      {% for line in order.lines %}
+        <div class="confirmation-line">
+          <div>
+            <strong>{{ line.item_name_snapshot }}</strong>
+            <span>Quantity: {{ line.quantity }}</span>
+          </div>
+          <strong>TK. {{ '%.2f'|format(line.line_total) }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="confirmation-delivery">
+      <div>
+        <span>Delivery area</span>
+        <strong>{% if order.delivery_area %}{{ order.delivery_area.replace('_', ' ')|title }}{% else %}Not available{% endif %}</strong>
+      </div>
+      <div>
+        <span>Delivery charge</span>
+        <strong>TK. {{ '%.2f'|format(order.delivery_charge or 0) }}</strong>
+      </div>
+    </div>
+    <div class="confirmation-total">
+      <span>Total</span>
+      <strong>TK. {{ '%.2f'|format(order.payable_amount) }}</strong>
+    </div>
+    <p class="confirmation-contact">Questions? Call or WhatsApp <a href="tel:+8801832286304">+880 1832 286304</a>.</p>
+    <div class="confirmation-actions">
+      <a class="button button-dark" href="/products">Continue shopping <span>&rarr;</span></a>
+      <a class="button button-light" href="/auth">View account</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

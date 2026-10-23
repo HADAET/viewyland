@@ -5,66 +5,132 @@
   <p class="eyebrow">Your selections</p>
   <h1>Shopping bag.</h1>
   {% if lines %}
-    <div class="cart-list">
-      {% for line in lines %}
-        <article class="cart-line" data-cart-line="{{ line.product.id }}">
-          <div class="cart-line-art {{ line.product.tone }}">
-            {% if line.product.images and line.product.images|length > 0 %}
-              <img 
-                src="{{ line.product.images[0].url }}" 
-                alt="{{ line.product.images[0].alt or line.product.name }}" 
-                style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;"
-              />
-            {% else %}
-              <div class="object {{ line.product.type }}"><i></i><b></b><em></em></div>
-            {% endif %}
+    <div class="cart-layout">
+      <div class="cart-primary">
+        <div class="cart-list">
+          {% for line in lines %}
+            <article class="cart-line" data-cart-line="{{ line.product.id }}">
+              <div class="cart-line-art {{ line.product.tone }}">
+                {% if line.product.images and line.product.images|length > 0 %}
+                  <img src="{{ line.product.images[0].url }}" alt="{{ line.product.images[0].alt or line.product.name }}" loading="lazy">
+                {% else %}
+                  <div class="object {{ line.product.type }}"><i></i><b></b><em></em></div>
+                {% endif %}
+              </div>
+              <div class="cart-line-item">
+                <h3>{{ line.product.name }}</h3>
+                <div class="cart-quantity">
+                  {% if buy_now_item_no %}
+                    <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity" {% if line.quantity <= 1 %}disabled{% endif %}>&minus;</button>
+                    <span>Qty {{ line.quantity }}</span>
+                    <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity" {% if line.quantity >= 99 %}disabled{% endif %}>+</button>
+                    <button class="cart-remove" type="button" data-buy-now-remove>Remove</button>
+                  {% else %}
+                    <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity">&minus;</button>
+                    <span>Qty {{ line.quantity }}</span>
+                    <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity">+</button>
+                    <button class="cart-remove" type="button" data-cart-change="{{ line.product.id }}" data-quantity="0">Remove</button>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="cart-line-description">
+                <section class="product-info-tabs" data-product-tabs>
+                  <div class="product-info-tab-list" role="tablist" aria-label="Information for {{ line.product.name }}">
+                    <button id="cart-description-tab-{{ loop.index }}" type="button" role="tab" aria-selected="true" aria-controls="cart-description-panel-{{ loop.index }}">Description</button>
+                    <button id="cart-how-to-order-tab-{{ loop.index }}" type="button" role="tab" aria-selected="false" aria-controls="cart-how-to-order-panel-{{ loop.index }}" tabindex="-1">How to order</button>
+                  </div>
+                  <div id="cart-description-panel-{{ loop.index }}" class="product-info-panel" role="tabpanel" aria-labelledby="cart-description-tab-{{ loop.index }}">
+                    <h2>{{ line.product.name }}</h2>
+                    <p>{{ line.product.description or 'No description available.' }}</p>
+                  </div>
+                  <div id="cart-how-to-order-panel-{{ loop.index }}" class="product-info-panel" role="tabpanel" aria-labelledby="cart-how-to-order-tab-{{ loop.index }}" hidden>
+                    <ol>
+                      <li>Select the number of products you want to buy.</li>
+                      <li>Click <strong>Add to Cart</strong> or <strong>Order Now</strong>.</li>
+                      <li>Go to the checkout page.</li>
+                      <li>If you are a new customer, click <a href="/auth"><strong>Sign Up</strong></a> and provide valid information.</li>
+                      <li>Complete checkout. We will receive your order and contact you for order confirmation or customer service.</li>
+                    </ol>
+                  </div>
+                </section>
+              </div>
+              <strong>{{ line.product.currency }} {{ '%.2f'|format(line.total) }}</strong>
+            </article>
+          {% endfor %}
+        </div>
+
+        <section class="cart-delivery" aria-labelledby="delivery-area-title">
+          <div>
+            <p class="eyebrow">Delivery</p>
+            <h2 id="delivery-area-title">Delivery Area <span>*</span></h2>
+            <p>Select your delivery area to calculate your order total.</p>
           </div>
-          <div class="cart-line-item">
-            <h3>{{ line.product.name }}</h3>
-            <div class="cart-quantity">
-              {% if buy_now_item_no %}
-              <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity" {% if line.quantity <= 1 %}disabled{% endif %}>&minus;</button>
-              <span>Qty {{ line.quantity }}</span>
-              <button type="button" data-buy-now-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity" {% if line.quantity >= 99 %}disabled{% endif %}>+</button>
-              <button class="cart-remove" type="button" data-buy-now-remove>Remove</button>
-              {% else %}
-              <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity - 1 }}" aria-label="Decrease quantity">&minus;</button>
-              <span>Qty {{ line.quantity }}</span>
-              <button type="button" data-cart-change="{{ line.product.id }}" data-quantity="{{ line.quantity + 1 }}" aria-label="Increase quantity">+</button>
-              <button class="cart-remove" type="button" data-cart-change="{{ line.product.id }}" data-quantity="0">Remove</button>
-              {% endif %}
+          <div class="delivery-area-options">
+            <label>
+              <input type="radio" name="delivery_area_choice" value="inside_chittagong" data-delivery-area-choice data-charge="{{ delivery_charges.inside_chittagong }}">
+              <span><strong>Inside Chittagong</strong><small>Delivery charge: TK. {{ delivery_charges.inside_chittagong }}</small></span>
+            </label>
+            <label>
+              <input type="radio" name="delivery_area_choice" value="outside_chittagong" data-delivery-area-choice data-charge="{{ delivery_charges.outside_chittagong }}">
+              <span><strong>Outside Chittagong</strong><small>Delivery charge: TK. {{ delivery_charges.outside_chittagong }}</small></span>
+            </label>
+          </div>
+        </section>
+
+        <div class="cart-summary cart-summary-detailed">
+          <div class="cart-totals" data-cart-subtotal="{{ '%.2f'|format(total) }}">
+            <div><span>Subtotal</span><strong>{{ lines[0].product.currency }} {{ '%.2f'|format(total) }}</strong></div>
+            <div><span>Delivery charge</span><strong data-delivery-charge>Choose delivery area</strong></div>
+            <div class="cart-grand-total"><span>Total</span><strong data-cart-total data-currency="{{ lines[0].product.currency }}">Select area to calculate total</strong></div>
+          </div>
+          <div class="cart-summary-actions">
+            <a class="button button-light" href="/products">Continue shopping <span>&rarr;</span></a>
+            {% if buy_now_item_no %}
+              <button class="button button-light" type="button" data-add-buy-now="{{ buy_now_item_no }}" data-quantity="{{ lines[0].quantity }}">Add to Cart instead</button>
+            {% endif %}
+            <button class="button button-dark" type="button" data-confirm-open disabled>Continue to checkout <span>&rarr;</span></button>
+          </div>
+          <p class="order-message" data-buy-now-message role="status" aria-live="polite"></p>
+        </div>
+
+        <form class="order-login" data-confirm-form hidden>
+          {% if buy_now_item_no %}<input type="hidden" name="buy_now_item_no" value="{{ buy_now_item_no }}"><input type="hidden" name="buy_now_quantity" value="{{ lines[0].quantity }}">{% endif %}
+          <input type="hidden" name="delivery_area" value="" data-delivery-area-value>
+          <div>
+            <p class="eyebrow">{% if customer %}Ready to order{% else %}Login or register{% endif %}</p>
+            <h2>Almost yours.</h2>
+            <p>{% if customer %}You are logged in as {{ customer.customer_name }}. Confirm your delivery details to place the order.{% else %}Enter your name and mobile number to register and confirm this order.{% endif %}</p>
+          </div>
+          <label>Name<input name="customer_name" required minlength="2" value="{{ customer.customer_name if customer else '' }}" placeholder="Your full name"></label>
+          <label>Mobile number<input name="mobile_no" required minlength="7" value="{{ customer.mobile_no if customer else '' }}" placeholder="01XXXXXXXXX"></label>
+          <label>Delivery address <span>(optional)</span><input name="address" value="{{ customer.present_address if customer else '' }}" placeholder="Your delivery address"></label>
+          <button class="button button-dark" type="submit">Confirm order <span>&rarr;</span></button>
+          <p class="order-message" data-order-message role="status"></p>
+        </form>
+
+        <aside class="cart-static-info" aria-label="Delivery and product information">
+          <h2>Order information</h2>
+          <ul>
+            <li>Order today and receive it within 01 - 02 days</li>
+            <li>Quality product</li>
+            <li>Cash on delivery available</li>
+            <li>Delivery charge inside Chittagong: 70 TK</li>
+            <li>Delivery charge outside Chittagong: 130 TK</li>
+          </ul>
+          <p>Have a question about your order? Please contact us.</p>
+          <div class="detail-contact">
+            <button class="detail-contact-toggle" type="button" aria-expanded="false" aria-controls="cart-contact-options" data-contact-toggle>
+              Call / WhatsApp <span>+880 1832 286304</span>
+            </button>
+            <div id="cart-contact-options" class="detail-contact-options" hidden>
+              <a href="tel:+8801832286304">Call +880 1832 286304</a>
+              <a href="https://wa.me/8801832286304" target="_blank" rel="noopener noreferrer">WhatsApp +880 1832 286304</a>
             </div>
           </div>
-          <div class="cart-line-description">
-            <span>Description</span>
-            <p>{{ line.product.description or 'No description available.' }}</p>
-          </div>
-          <strong>{{ line.product.currency }} {{ '%.2f'|format(line.total) }}</strong>
-        </article>
-      {% endfor %}
-    </div>
-
-    <div class="cart-summary">
-      <span>Total</span>
-      <strong>{{ lines[0].product.currency }} {{ '%.2f'|format(total) }}</strong>
-      <a class="button button-light" href="/products">Continue shopping <span>&rarr;</span></a>
-      <button class="button button-dark" type="button" data-confirm-open>Confirm order <span>&rarr;</span></button>
-    </div>
-
-    <form class="order-login" data-confirm-form hidden>
-      {% if buy_now_item_no %}<input type="hidden" name="buy_now_item_no" value="{{ buy_now_item_no }}"><input type="hidden" name="buy_now_quantity" value="{{ lines[0].quantity }}">{% endif %}
-      <div>
-        <p class="eyebrow">{% if customer %}Ready to order{% else %}Login or register{% endif %}</p>
-        <h2>Almost yours.</h2>
-        <p>{% if customer %}You are logged in as {{ customer.customer_name }}. Confirm your delivery details to place the order.{% else %}Enter your name and mobile number to register and confirm this order.{% endif %}</p>
+        </aside>
+        {% include 'components/recommendations.html' %}
       </div>
-      <label>Name<input name="customer_name" required minlength="2" value="{{ customer.customer_name if customer else '' }}" placeholder="Your full name"></label>
-      <label>Mobile number<input name="mobile_no" required minlength="7" value="{{ customer.mobile_no if customer else '' }}" placeholder="01XXXXXXXXX"></label>
-      <label>Delivery address <span>(optional)</span><input name="address" value="{{ customer.present_address if customer else '' }}" placeholder="Your delivery address"></label>
-      <button class="button button-dark" type="submit">Confirm order <span>&rarr;</span></button>
-      <p class="order-message" data-order-message role="status"></p>
-    </form>
-    {% include 'components/recommendations.html' %}
+    </div>
   {% else %}
     <div class="empty-state">
       <h2>Your bag is waiting.</h2>
@@ -73,4 +139,7 @@
     </div>
   {% endif %}
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/gallery.js" defer></script>
 {% endblock %}

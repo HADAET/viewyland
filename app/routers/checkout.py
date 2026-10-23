@@ -1,9 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from app.services.cart_service import COOKIE_NAME, cart_count
 from app.services.order_service import OrderError, confirm_order, create_order, get_order, register_customer
 
 router = APIRouter(prefix="/checkout", tags=["checkout"])
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 class RegistrationPayload(BaseModel):
@@ -23,6 +30,7 @@ class OrderPayload(BaseModel):
     mobile_no: str = Field(min_length=7, max_length=25)
     store_no: str = "VL-MAIN"
     delivery_address: str | None = Field(default=None, max_length=200)
+    delivery_area: Literal["inside_chittagong", "outside_chittagong"]
     lines: list[OrderLinePayload] = Field(min_length=1)
 
 
@@ -47,7 +55,13 @@ async def register(payload: RegistrationPayload):
 @router.post("/orders", status_code=201)
 async def place_order(payload: OrderPayload):
     try:
-        return create_order(payload.mobile_no, payload.store_no, [line.model_dump() for line in payload.lines], payload.delivery_address)
+        return create_order(
+            payload.mobile_no,
+            payload.store_no,
+            [line.model_dump() for line in payload.lines],
+            payload.delivery_area,
+            payload.delivery_address,
+        )
     except OrderError as error:
         fail(error)
 
@@ -58,6 +72,22 @@ async def read_order(order_no: str):
         return get_order(order_no)
     except OrderError as error:
         fail(error)
+
+
+@router.get("/confirmation/{order_no}", name="order_confirmation")
+async def order_confirmation_page(request: Request, order_no: str):
+    try:
+        order = get_order(order_no)
+    except OrderError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return templates.TemplateResponse(
+        request=request,
+        name="order_confirmation.html",
+        context={
+            "order": order,
+            "cart_count": cart_count(request.cookies.get(COOKIE_NAME)),
+        },
+    )
 
 
 @router.post("/orders/{order_no}/confirm")

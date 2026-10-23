@@ -1,3 +1,15 @@
 {% extends 'base.html' %}
-{% block title %}Admin login &mdash; Viewyland{% endblock %}
-{% block content %}<section class="admin-login content-section"><p class="eyebrow">Viewyland operations</p><h1>Admin login.</h1><form method="post" action="/admin/login"><label>Password<input type="password" name="password" required autofocus></label><button class="button button-dark" type="submit">Open dashboard <span>&rarr;</span></button>{% if error %}<p class="admin-error">{{ error }}</p>{% endif %}</form></section>{% endblock %}
+{% block title %}Admin login — Viewyland{% endblock %}
+{% block content %}
+<section class="admin-login content-section">
+  <p class="eyebrow">Viewyland operations</p>
+  <h1>Admin login.</h1>
+  <form method="post" action="/admin/login">
+    <label>Username<input type="text" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <label class="admin-remember"><input type="checkbox" name="remember_me" value="true"> Remember me for 30 days</label>
+    <button class="button button-dark" type="submit">Open dashboard <span>&rarr;</span></button>
+    {% if error %}<p class="admin-error">{{ error }}</p>{% endif %}
+  </form>
+</section>
+{% endblock %}

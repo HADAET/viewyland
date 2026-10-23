@@ -42,12 +42,12 @@ def cart_lines(raw_cookie: str | None) -> list[dict]:
             }) #[cite: 1]
     return lines
 
-def add_to_cart(raw_cookie: str | None, item_no: str) -> tuple[str, int]:
+def add_to_cart(raw_cookie: str | None, item_no: str, quantity: int = 1) -> tuple[str, int]:
 	cart = read_cart(raw_cookie)
 	product = get_product(item_no)
 	if not product:
 		raise ValueError("Product not found")
-	cart[product["id"]] = cart.get(product["id"], 0) + 1
+	cart[product["id"]] = cart.get(product["id"], 0) + quantity
 	return json.dumps(cart), sum(cart.values())
 
 

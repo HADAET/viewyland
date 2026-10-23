@@ -11,6 +11,12 @@ class OrderError(Exception):
     """A business-rule error that can safely be returned to an API client."""
 
 
+DELIVERY_CHARGES = {
+    "inside_chittagong": 70,
+    "outside_chittagong": 130,
+}
+
+
 def _number(prefix: str) -> str:
     return f"{prefix}-{datetime.now():%Y%m%d}-{uuid4().hex[:8].upper()}"
 
@@ -57,9 +63,18 @@ def get_customer_by_registration(registration_no: str):
     return dict(customer) if customer else None
 
 
-def create_order(mobile_no: str, store_no: str, lines: list[dict], delivery_address: str | None = None):
+def create_order(
+    mobile_no: str,
+    store_no: str,
+    lines: list[dict],
+    delivery_area: str,
+    delivery_address: str | None = None,
+):
     if not lines:
         raise OrderError("An order needs at least one item.")
+    if delivery_area not in DELIVERY_CHARGES:
+        raise OrderError("Please select a valid delivery area.")
+    delivery_charge = DELIVERY_CHARGES[delivery_area]
     merged: dict[str, dict] = {}
     for line in lines:
         item_no = line["item_no"].strip().upper()
@@ -89,7 +104,7 @@ def create_order(mobile_no: str, store_no: str, lines: list[dict], delivery_addr
         subtotal = sum(line[3] * line[2] for line in prepared)
         discount = sum(line[4] for line in prepared)
         order_no = _number("ORD")
-        connection.execute("""INSERT INTO order_master (order_no, registration_no, wsm_store_no, subtotal, discount_amount, payable_amount, delivery_address, customer_name_snapshot, customer_mobile_snapshot,order_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)""", (order_no, customer["registration_no"], store_no, subtotal, discount, subtotal - discount, delivery_address or customer["present_address"], customer["customer_name"], customer["mobile_no"],'PENDING'))
+        connection.execute("""INSERT INTO order_master (order_no, registration_no, wsm_store_no, subtotal, discount_amount, delivery_charge, delivery_area, payable_amount, delivery_address, customer_name_snapshot, customer_mobile_snapshot, order_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (order_no, customer["registration_no"], store_no, subtotal, discount, delivery_charge, delivery_area, subtotal - discount + delivery_charge, delivery_address or customer["present_address"], customer["customer_name"], customer["mobile_no"], 'PENDING'))
         connection.executemany("""INSERT INTO order_details (order_no, item_no, item_name_snapshot, quantity, unit_price, discount_amount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)""", [(order_no, *line) for line in prepared])
     return get_order(order_no)
 
@@ -166,6 +181,8 @@ def get_order(order_no: str):
         "status": order["order_status"], 
         "payment_status": order["payment_status"], 
         "payable_amount": order["payable_amount"], 
+        "delivery_area": order["delivery_area"],
+        "delivery_charge": order["delivery_charge"],
         "store_no": order["wsm_store_no"], 
         "lines": [dict(line) for line in lines]
     }

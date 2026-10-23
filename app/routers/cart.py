@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -6,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.services.cart_service import COOKIE_NAME, add_to_cart, cart_count, cart_lines, update_cart
 from app.routers.auth import AUTH_COOKIE
-from app.services.order_service import OrderError, confirm_order, create_order, get_customer_by_registration,get_customer_by_mobile, register_customer
+from app.services.order_service import DELIVERY_CHARGES, OrderError, confirm_order, create_order, get_customer_by_registration,get_customer_by_mobile, register_customer
 from app.services.product_service import get_product, get_recommended_products
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -19,10 +21,16 @@ class CartItemPayload(BaseModel):
 	quantity: int | None = Field(default=None, ge=0, le=99)
 
 
+class AddCartItemPayload(BaseModel):
+	item_no: str = Field(min_length=1, max_length=16)
+	quantity: int = Field(default=1, ge=1, le=99)
+
+
 class ConfirmCartPayload(BaseModel):
 	customer_name: str = Field(min_length=2, max_length=50)
 	mobile_no: str = Field(min_length=7, max_length=25)
 	address: str | None = Field(default=None, max_length=200)
+	delivery_area: Literal["inside_chittagong", "outside_chittagong"]
 	buy_now_item_no: str | None = Field(default=None, min_length=1, max_length=16)
 	buy_now_quantity: int = Field(default=1, ge=1, le=99)
 
@@ -48,6 +56,7 @@ async def cart_page(request: Request, buy_now: str | None = None, quantity: int 
 			"total": total,
 			"customer": customer,
 			"cart_count": cart_count(request.cookies.get(COOKIE_NAME)),
+			"delivery_charges": DELIVERY_CHARGES,
 			"buy_now_item_no": buy_now_product["id"] if buy_now_product else None,
 			"recommended_products": get_recommended_products(
 				[line["product"]["category"] for line in lines],
@@ -58,9 +67,9 @@ async def cart_page(request: Request, buy_now: str | None = None, quantity: int 
 
 
 @router.post("/items")
-async def add_item(request: Request, payload: CartItemPayload):
+async def add_item(request: Request, payload: AddCartItemPayload):
 	try:
-		cookie, count = add_to_cart(request.cookies.get(COOKIE_NAME), payload.item_no)
+		cookie, count = add_to_cart(request.cookies.get(COOKIE_NAME), payload.item_no, payload.quantity)
 	except ValueError as error:
 		raise HTTPException(status_code=404, detail=str(error)) from error
 	response = JSONResponse({"ok": True, "cart_count": count})
@@ -130,6 +139,7 @@ async def confirm_cart(request: Request, payload: ConfirmCartPayload):
 			payload.mobile_no,
 			"VL-MAIN",
 			[{"item_no": line["product"]["id"], "quantity": line["quantity"], "discount_amount": 0} for line in lines],
+			payload.delivery_area,
 			payload.address,
 		)
 		confirmed = confirm_order(order["order_no"], "COD", order["payable_amount"])

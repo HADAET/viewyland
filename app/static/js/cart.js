@@ -6,16 +6,28 @@
   document.querySelectorAll('[data-add-to-cart], [data-order-now]').forEach((button) => {
     button.addEventListener('click', async () => {
       if (button.hasAttribute('data-order-now')) {
-        window.location.href = `/cart?buy_now=${encodeURIComponent(button.dataset.orderNow)}`;
+        const quantityInput = button.closest('.product-detail')?.querySelector('[data-product-quantity]');
+        const quantity = quantityInput ? Number(quantityInput.value) : 1;
+        if (quantityInput && !quantityInput.checkValidity()) {
+          quantityInput.reportValidity();
+          return;
+        }
+        window.location.href = `/cart?buy_now=${encodeURIComponent(button.dataset.orderNow)}&quantity=${quantity}`;
         return;
       }
       if (button.disabled) return;
+      const quantityInput = button.closest('.product-detail')?.querySelector('[data-product-quantity]');
+      const quantity = quantityInput ? Number(quantityInput.value) : 1;
+      if (quantityInput && !quantityInput.checkValidity()) {
+        quantityInput.reportValidity();
+        return;
+      }
       button.disabled = true;
       try {
         const response = await fetch('/cart/items', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({item_no: button.dataset.addToCart}),
+          body: JSON.stringify({item_no: button.dataset.addToCart, quantity}),
         });
         if (!response.ok) throw new Error('Unable to add item');
         const data = await response.json();
@@ -25,7 +37,8 @@
         setTimeout(() => { button.textContent = 'Add to Cart'; button.classList.remove('is-added'); button.disabled = false; }, 1200);
       } catch (error) {
         button.disabled = false;
-        button.setAttribute('aria-label', 'Unable to add item');
+        button.textContent = 'Try again';
+        button.setAttribute('aria-label', error.message || 'Unable to add item');
       }
     });
   });
@@ -61,29 +74,86 @@
     window.location.href = '/cart';
   });
 
+  const addBuyNowButton = document.querySelector('[data-add-buy-now]');
+  const buyNowMessage = document.querySelector('[data-buy-now-message]');
+  addBuyNowButton?.addEventListener('click', async () => {
+    addBuyNowButton.disabled = true;
+    buyNowMessage.className = 'order-message';
+    buyNowMessage.textContent = 'Adding item to your cart...';
+    try {
+      const response = await fetch('/cart/items', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          item_no: addBuyNowButton.dataset.addBuyNow,
+          quantity: Number(addBuyNowButton.dataset.quantity),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not add this item to your cart.');
+      window.location.href = '/cart';
+    } catch (error) {
+      addBuyNowButton.disabled = false;
+      buyNowMessage.className = 'order-message is-error';
+      buyNowMessage.textContent = error.message || 'Could not add this item to your cart.';
+    }
+  });
+
   const confirmOpen = document.querySelector('[data-confirm-open]');
   const confirmForm = document.querySelector('[data-confirm-form]');
   const orderMessage = document.querySelector('[data-order-message]');
+  const deliveryChoices = document.querySelectorAll('[data-delivery-area-choice]');
+  const deliveryAreaValue = document.querySelector('[data-delivery-area-value]');
+  const deliveryCharge = document.querySelector('[data-delivery-charge]');
+  const cartTotal = document.querySelector('[data-cart-total]');
+  const cartSubtotal = document.querySelector('[data-cart-subtotal]');
+
+  const updateDeliveryTotal = () => {
+    const selectedArea = document.querySelector('[data-delivery-area-choice]:checked');
+    if (confirmOpen) confirmOpen.disabled = !selectedArea;
+    if (deliveryAreaValue) deliveryAreaValue.value = selectedArea ? selectedArea.value : '';
+    if (!selectedArea || !cartTotal || !cartSubtotal) {
+      if (deliveryCharge) deliveryCharge.textContent = 'Choose delivery area';
+      if (cartTotal) cartTotal.textContent = 'Select area to calculate total';
+      return;
+    }
+    const charge = Number(selectedArea.dataset.charge);
+    const subtotal = Number(cartSubtotal.dataset.cartSubtotal);
+    const currency = cartTotal.dataset.currency;
+    deliveryChoices.forEach((choice) => choice.closest('label').classList.toggle('is-selected', choice === selectedArea));
+    deliveryCharge.textContent = `${currency} ${charge.toFixed(2)}`;
+    cartTotal.textContent = `${currency} ${(subtotal + charge).toFixed(2)}`;
+  };
+  deliveryChoices.forEach((choice) => choice.addEventListener('change', updateDeliveryTotal));
+  updateDeliveryTotal();
+
   confirmOpen?.addEventListener('click', () => {
+    if (!document.querySelector('[data-delivery-area-choice]:checked')) return;
     confirmForm.hidden = false;
     confirmForm.scrollIntoView({behavior: 'smooth', block: 'center'});
     confirmForm.querySelector('input')?.focus();
   });
   confirmForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (!document.querySelector('[data-delivery-area-choice]:checked')) {
+      orderMessage.className = 'order-message is-error';
+      orderMessage.textContent = 'Please select your delivery area.';
+      return;
+    }
     const submit = confirmForm.querySelector('button[type="submit"]');
     submit.disabled = true;
     orderMessage.textContent = 'Confirming your order...';
-    const response = await fetch('/cart/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.fromEntries(new FormData(confirmForm)))});
-    const data = await response.json();
-    if (response.ok) {
+    try {
+      const response = await fetch('/cart/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.fromEntries(new FormData(confirmForm)))});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not confirm the order.');
       orderMessage.className = 'order-message is-success';
       orderMessage.textContent = `Order ${data.order_no} confirmed successfully.`;
-      setTimeout(() => { window.location.href = '/'; }, 1800);
-    } else {
+      setTimeout(() => { window.location.href = `/checkout/confirmation/${encodeURIComponent(data.order_no)}`; }, 900);
+    } catch (error) {
       submit.disabled = false;
       orderMessage.className = 'order-message is-error';
-      orderMessage.textContent = data.detail || 'Could not confirm the order.';
+      orderMessage.textContent = error.message || 'Could not confirm the order.';
     }
   });
 })();

@@ -4,16 +4,18 @@
 <main class="db-admin">
   <aside class="db-sidebar">
     <a class="db-brand" href="/admin"><span>⌘</span> VIEWYLAND ADMIN</a>
-    <div class="db-admin-user"><span>●</span><div><strong>Administrator</strong><small>Database access</small></div></div>
+    <div class="db-admin-user"><span>●</span><div><strong>{{ admin_user.username }}</strong><small>{{ 'Super Admin' if admin_user.role == 'super_admin' else 'Admin' }}</small></div></div>
     <p class="db-sidebar-label">Database tables</p>
     <nav class="db-table-nav" aria-label="Database tables">
       <a class="is-active" href="/admin/orders"><span>▣</span>Order management</a>
+      {% if admin_user.role == 'super_admin' %}<a href="/admin/users"><span>♙</span>Admin users</a>{% endif %}
+      <a href="/admin/password"><span>⚿</span>Change password</a>
       {% for table in tables %}<a class="{% if selected_table == table %}is-active{% endif %}" href="/admin?table={{ table }}"><span>▤</span>{{ table }}<b>{{ table_counts[table] }}</b></a>{% endfor %}
     </nav>
     <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
   </aside>
   <section class="db-content">
-    <header class="db-topbar"><div><a href="/admin">Dashboard</a><span>/</span><strong>Database</strong><span>/</span><b>{{ selected_table }}</b></div><nav class="db-top-actions"><a href="/admin/orders">Order Management</a><span class="db-admin-chip">Administrator</span></nav></header>
+    <header class="db-topbar"><div><a href="/admin">Dashboard</a><span>/</span><strong>Database</strong><span>/</span><b>{{ selected_table }}</b></div><nav class="db-top-actions"><a href="/admin/orders">Order Management</a><span class="db-admin-chip">{{ admin_user.username }} · {{ 'Super Admin' if admin_user.role == 'super_admin' else 'Admin' }}</span></nav></header>
     <div class="db-title-row"><div><p>DATABASE TABLE</p><h1>{{ selected_table }}</h1><span>Showing {{ rows|length }} of {{ total_rows }} row{% if total_rows != 1 %}s{% endif %} &middot; page {{ page }} of {{ total_pages }}</span></div>{% if not read_only %}<button class="db-primary" type="button" data-row-editor data-mode="add" data-table="{{ selected_table }}" data-action="/admin/tables/{{ selected_table }}/rows" data-columns='{{ columns|tojson }}'>+ Add row</button>{% endif %}</div>
     <form method="get" action="/admin" class="db-toolbar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding-left: 32px;">
       <input type="hidden" name="table" value="{{ selected_table }}">
@@ -45,4 +47,3 @@ window.viewylandAdminCustomers = {{ customers|tojson }};
 </script>
 {% endblock %}
 {% block scripts %}<script src="/static/js/admin.js" defer></script>{% endblock %}
-

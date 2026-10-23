@@ -12,7 +12,12 @@
     <section class="print-meta"><div><span>{{ document_type|title }} no.</span><strong>{{ document_no }}</strong></div><div><span>Date</span><strong>{{ document_date }}</strong></div><div><span>Order no.</span><strong>{{ order.order_no }}</strong></div></section>
     <section class="print-customer"><div><span>Billed to</span><strong>{{ order.customer_name_snapshot }}</strong><p>{{ order.customer_mobile_snapshot }}<br>{{ order.delivery_address or 'Address not provided' }}</p></div>{% if payment_type %}<div><span>Payment method</span><strong>{{ payment_type }}</strong></div>{% endif %}</section>
     <table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>{% for line in lines %}<tr><td>{{ line.item_name_snapshot }}</td><td>{{ line.quantity }}</td><td>TK. {{ '%.2f'|format(line.unit_price) }}</td><td>TK. {{ '%.2f'|format(line.line_total) }}</td></tr>{% endfor %}</tbody></table>
-    <footer><span>Payable amount</span><strong>TK. {{ '%.2f'|format(order.payable_amount) }}</strong></footer>
+    <section class="print-total-breakdown">
+      <div><span>Items subtotal</span><strong>TK. {{ '%.2f'|format(order.subtotal) }}</strong></div>
+      {% if order.discount_amount %}<div><span>Discount</span><strong>- TK. {{ '%.2f'|format(order.discount_amount) }}</strong></div>{% endif %}
+      {% if order.delivery_area %}<div><span>Delivery ({{ order.delivery_area.replace('_', ' ')|title }})</span><strong>TK. {{ '%.2f'|format(order.delivery_charge or 0) }}</strong></div>{% endif %}
+      <footer><span>Payable amount</span><strong>TK. {{ '%.2f'|format(order.payable_amount) }}</strong></footer>
+    </section>
   </main>
 </body>
 </html>

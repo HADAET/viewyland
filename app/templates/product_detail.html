@@ -2,49 +2,105 @@
 {% block title %}{{ product.name }} &mdash; Viewyland{% endblock %}
 {% block content %}
 <section class="product-detail">
-    <a class="back-link" href="/products">&larr; Back to collection</a>
-    
-    <div class="detail-gallery">
-        <!-- Omit tone class if real images exist, otherwise keep it for the shape background -->
-        <div class="detail-art {% if not product.images %}{{ product.tone }}{% endif %}" data-gallery-main>
-            {% if product.images %}
-                <img src="{{ product.images[0].url }}" alt="{{ product.images[0].alt or product.name }}" data-gallery-image>
-            {% else %}
-                <div class="object {{ product.type }}"><i></i><b></b><em></em></div>
-            {% endif %}
-        </div>
+  <a class="back-link" href="/products">&larr; Back to collection</a>
 
+  <div class="product-detail-layout">
+    <div class="detail-gallery">
+      <div class="detail-art {% if not product.images %}{{ product.tone }}{% endif %}" data-gallery-main>
         {% if product.images %}
-            <div class="gallery-thumbs">
-                {% for image in product.images %}
-                    <button type="button" data-gallery-thumb="{{ image.url }}" aria-label="View image {{ loop.index }}">
-                        <img src="{{ image.url }}" alt="{{ image.alt or product.name }}" loading="lazy">
-                    </button>
-                {% endfor %}
-            </div>
+          <img src="{{ product.images[0].url }}" alt="{{ product.images[0].alt or product.name }}" data-gallery-image>
+        {% else %}
+          <div class="object {{ product.type }}"><i></i><b></b><em></em></div>
         {% endif %}
+      </div>
+
+      {% if product.images %}
+        <div class="gallery-thumbs">
+          {% for image in product.images %}
+            <button type="button" data-gallery-thumb="{{ image.url }}" aria-label="View image {{ loop.index }}">
+              <img src="{{ image.url }}" alt="{{ image.alt or product.name }}" loading="lazy">
+            </button>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
 
     <div class="detail-copy">
-        <p class="eyebrow">{{ product.category }}</p>
-        <h1>{{ product.name }}</h1>
-        <p class="detail-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</p>
-        <p>{{ product.description }}</p>
-        <p class="detail-id">Item no. {{ product.id }} &middot; Curated in Bangladesh</p>
-        <div class="product-detail-actions">
-            <button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to Cart <span>&rarr;</span></button>
-            <button class="button button-dark" type="button" data-order-now="{{ product.id }}">Order Now <span>&rarr;</span></button>
+      <p class="eyebrow">{{ product.category }}</p>
+      <h1>{{ product.name }}</h1>
+      <p class="detail-price">{{ product.currency }} {{ '%.2f'|format(product.price) }}</p>
+      {% if product.previous_price and product.previous_price > product.price %}
+        <p class="detail-previous-price">{{ product.currency }} {{ '%.2f'|format(product.previous_price) }}</p>
+      {% endif %}
+      <p class="delivery-note">Home delivery available all over the country.</p>
+
+      <div class="detail-quantity">
+        <label for="product-quantity">Quantity</label>
+        <div class="quantity-control">
+          <button type="button" data-quantity-step="-1" aria-label="Decrease quantity">&minus;</button>
+          <input id="product-quantity" type="number" min="1" max="99" value="1" inputmode="numeric" data-product-quantity>
+          <button type="button" data-quantity-step="1" aria-label="Increase quantity">+</button>
         </div>
+      </div>
+
+      <div class="product-detail-actions">
+        <button class="button button-dark" type="button" data-add-to-cart="{{ product.id }}">Add to Cart</button>
+        <button class="button button-dark" type="button" data-order-now="{{ product.id }}">Order Now</button>
+      </div>
+
+      <div class="detail-contact">
+        <button class="detail-contact-toggle" type="button" aria-expanded="false" aria-controls="detail-contact-options">
+          Call / WhatsApp <span>+880 1832 286304</span>
+        </button>
+        <div id="detail-contact-options" class="detail-contact-options" hidden>
+          <a href="tel:+8801832286304">Call +880 1832 286304</a>
+          <a href="https://wa.me/8801832286304" target="_blank" rel="noopener noreferrer">WhatsApp +880 1832 286304</a>
+        </div>
+      </div>
     </div>
+
+    <aside class="detail-static-info" aria-label="Delivery and product information">
+      <h2>Order information</h2>
+      <ul>
+        <li>Order today and receive it within 01 - 02 days</li>
+        <li>Quality product</li>
+        <li>Cash on delivery available</li>
+        <li>Delivery charge inside Chittagong: 70 TK</li>
+        <li>Delivery charge outside Chittagong: 130 TK</li>
+      </ul>
+      <p>Have a question about this product? Please contact us.</p>
+      <a href="tel:+8801832286304">+880 1832 286304</a>
+    </aside>
+  </div>
+
+  <section class="product-info-tabs" data-product-tabs>
+    <div class="product-info-tab-list" role="tablist" aria-label="Product information">
+      <button id="product-description-tab" type="button" role="tab" aria-selected="true" aria-controls="product-description-panel">Description</button>
+      <button id="how-to-order-tab" type="button" role="tab" aria-selected="false" aria-controls="how-to-order-panel" tabindex="-1">How to order</button>
+    </div>
+    <div id="product-description-panel" class="product-info-panel" role="tabpanel" aria-labelledby="product-description-tab">
+      <h2>{{ product.name }}</h2>
+      <p>{{ product.description or 'No description available.' }}</p>
+    </div>
+    <div id="how-to-order-panel" class="product-info-panel" role="tabpanel" aria-labelledby="how-to-order-tab" hidden>
+      <ol>
+        <li>Select the number of products you want to buy.</li>
+        <li>Click <strong>Add to Cart</strong> or <strong>Order Now</strong>.</li>
+        <li>Go to the checkout page.</li>
+        <li>If you are a new customer, click <a href="/auth"><strong>Sign Up</strong></a> and provide valid information.</li>
+        <li>Complete checkout. We will receive your order and contact you for order confirmation or customer service.</li>
+      </ol>
+    </div>
+  </section>
 </section>
 
 {% include 'components/recommendations.html' %}
 
 {% if product.images %}
-    <div class="image-lightbox" data-image-lightbox hidden>
-        <button type="button" data-lightbox-close aria-label="Close image">&times;</button>
-        <img src="{{ product.images[0].url }}" alt="{{ product.name }}" data-lightbox-image>
-    </div>
+  <div class="image-lightbox" data-image-lightbox hidden>
+    <button type="button" data-lightbox-close aria-label="Close image">&times;</button>
+    <img src="{{ product.images[0].url }}" alt="{{ product.name }}" data-lightbox-image>
+  </div>
 {% endif %}
 
 {% block scripts %}

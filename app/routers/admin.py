@@ -1,8 +1,7 @@
 from pathlib import Path
 import hashlib
-import hmac
-import os
 import re
+import secrets
 from datetime import datetime
 from uuid import uuid4
 
@@ -16,6 +15,13 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.db.database import get_connection
+from app.services.admin_auth_service import (
+    hash_admin_password,
+    validate_admin_full_name,
+    validate_admin_password,
+    validate_admin_username,
+    verify_admin_password,
+)
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -24,7 +30,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 ADMIN_COOKIE = "viewyland_admin"
-ADMIN_PASSWORD = os.getenv("VIEWYLAND_ADMIN_PASSWORD", "change-me")
+ADMIN_SESSION_SECONDS = 60 * 60 * 8
+ADMIN_REMEMBER_SECONDS = 60 * 60 * 24 * 30
 
 ITEM_IMAGE_UPLOAD_DIR = Path("app/static/uploads/items")
 
@@ -86,25 +93,48 @@ TEXT_COLUMN_TYPES = {
 # ADMIN AUTH
 # =========================================================
 
-def _admin_token() -> str:
-    return hashlib.sha256(
-        ADMIN_PASSWORD.encode()
-    ).hexdigest()
+def _session_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def is_admin(request: Request) -> bool:
-    return hmac.compare_digest(
-        request.cookies.get(ADMIN_COOKIE, ""),
-        _admin_token(),
-    )
+def current_admin(request: Request) -> dict | None:
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if not token:
+        return None
+
+    with get_connection() as connection:
+        user = connection.execute(
+            """
+            SELECT admin_user_id, username, full_name, role
+            FROM admin_users
+            WHERE is_active = TRUE
+              AND session_token_hash = ?
+              AND session_expires_at > CURRENT_TIMESTAMP
+            """,
+            (_session_hash(token),),
+        ).fetchone()
+
+    return dict(user) if user else None
 
 
 def require_admin(request: Request):
-    if not is_admin(request):
+    user = current_admin(request)
+    if not user:
         raise HTTPException(
             status_code=401,
             detail="Admin login required",
         )
+    return user
+
+
+def require_super_admin(request: Request):
+    user = require_admin(request)
+    if user["role"] != "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Super Admin access required",
+        )
+    return user
 
 
 # =========================================================
@@ -881,11 +911,12 @@ async def dashboard(
     dir: str = "asc",
 ):
 
-    if not is_admin(request):
+    admin_user = current_admin(request)
+    if not admin_user:
         return templates.TemplateResponse(
             request=request,
             name="admin_login.html",
-            context={"error": None},
+            context={"error": None, "username": ""},
         )
 
     table = validate_table(table)
@@ -974,6 +1005,7 @@ async def dashboard(
             "search": search or "",
             "sort": sort or "",
             "sort_dir": sort_dir,
+            "admin_user": admin_user,
         },
     )
 
@@ -987,11 +1019,12 @@ async def order_management(
     request: Request,
 ):
 
-    if not is_admin(request):
+    admin_user = current_admin(request)
+    if not admin_user:
         return templates.TemplateResponse(
             request=request,
             name="admin_login.html",
-            context={"error": None},
+            context={"error": None, "username": ""},
         )
 
     with get_connection() as connection:
@@ -1007,6 +1040,8 @@ async def order_management(
                     order_status,
                     payment_status,
                     payable_amount,
+                    delivery_area,
+                    delivery_charge,
                     delivery_address,
                     created_on
 
@@ -1103,6 +1138,7 @@ async def order_management(
         name="admin_orders.html",
         context={
             "orders": orders,
+            "admin_user": admin_user,
         },
     )
 
@@ -1235,23 +1271,74 @@ async def order_document(
 # LOGIN
 # =========================================================
 
+@router.get("/login")
+async def login_page(request: Request):
+    if current_admin(request):
+        return RedirectResponse("/admin", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_login.html",
+        context={
+            "error": (
+                "Password updated. Sign in with your new password."
+                if request.query_params.get("changed") == "1"
+                else None
+            ),
+            "username": "",
+        },
+    )
+
+
 @router.post("/login")
 async def login(
     request: Request,
+    username: str = Form(...),
     password: str = Form(...),
+    remember_me: bool = Form(False),
 ):
+    with get_connection() as connection:
+        user = connection.execute(
+            """
+            SELECT admin_user_id, password_hash
+            FROM admin_users
+            WHERE LOWER(username) = LOWER(?)
+              AND is_active = TRUE
+            """,
+            (username.strip(),),
+        ).fetchone()
 
-    if not hmac.compare_digest(
-        password,
-        ADMIN_PASSWORD,
-    ):
+    if not user or not verify_admin_password(password, user["password_hash"]):
         return templates.TemplateResponse(
             request=request,
             name="admin_login.html",
             context={
-                "error": "Invalid admin password."
+                "error": "Invalid username or password.",
+                "username": username.strip(),
             },
             status_code=401,
+        )
+
+    session_seconds = (
+        ADMIN_REMEMBER_SECONDS
+        if remember_me
+        else ADMIN_SESSION_SECONDS
+    )
+    session_token = secrets.token_urlsafe(32)
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE admin_users
+            SET session_token_hash = ?,
+                session_expires_at =
+                    CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+            WHERE admin_user_id = ?
+              AND is_active = TRUE
+            """,
+            (
+                _session_hash(session_token),
+                session_seconds,
+                user["admin_user_id"],
+            ),
         )
 
     response = RedirectResponse(
@@ -1261,10 +1348,11 @@ async def login(
 
     response.set_cookie(
         ADMIN_COOKIE,
-        _admin_token(),
-        max_age=60 * 60 * 8,
+        session_token,
+        max_age=session_seconds,
         httponly=True,
         samesite="lax",
+        secure=request.url.scheme == "https",
     )
 
     return response
@@ -1275,10 +1363,22 @@ async def login(
 # =========================================================
 
 @router.post("/logout")
-async def logout():
+async def logout(request: Request):
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if token:
+        with get_connection() as connection:
+            connection.execute(
+                """
+                UPDATE admin_users
+                SET session_token_hash = NULL,
+                    session_expires_at = NULL
+                WHERE session_token_hash = ?
+                """,
+                (_session_hash(token),),
+            )
 
     response = RedirectResponse(
-        "/admin",
+        "/admin/login",
         status_code=303,
     )
 
@@ -1286,6 +1386,233 @@ async def logout():
         ADMIN_COOKIE
     )
 
+    return response
+
+
+# =========================================================
+# ADMIN ACCOUNT MANAGEMENT
+# =========================================================
+
+@router.get("/users", name="admin_users")
+async def admin_users(request: Request):
+    admin_user = require_super_admin(request)
+    with get_connection() as connection:
+        users = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT admin_user_id, username, full_name, role, is_active, created_at
+                FROM admin_users
+                ORDER BY created_at, admin_user_id
+                """
+            ).fetchall()
+        ]
+
+    errors = {
+        "username_taken": "That username is already in use.",
+        "created": "Admin account created.",
+        "removed": "Admin account removed.",
+        "reset": "Password reset. The user must sign in again.",
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_users.html",
+        context={
+            "admin_user": admin_user,
+            "users": users,
+            "message": errors.get(request.query_params.get("status")),
+        },
+    )
+
+
+@router.post("/users")
+async def create_admin_user(
+    request: Request,
+    username: str = Form(...),
+    full_name: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...),
+):
+    require_super_admin(request)
+    try:
+        clean_username = validate_admin_username(username)
+        clean_full_name = validate_admin_full_name(full_name)
+        clean_password = validate_admin_password(password)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    if role not in {"admin", "super_admin"}:
+        raise HTTPException(status_code=400, detail="Invalid admin role.")
+
+    try:
+        with get_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO admin_users (username, full_name, password_hash, role)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    clean_username,
+                    clean_full_name,
+                    hash_admin_password(clean_password),
+                    role,
+                ),
+            )
+    except psycopg2.errors.UniqueViolation:
+        return RedirectResponse(
+            "/admin/users?status=username_taken",
+            status_code=303,
+        )
+
+    return RedirectResponse("/admin/users?status=created", status_code=303)
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_admin_password(
+    request: Request,
+    user_id: int,
+    password: str = Form(...),
+):
+    require_super_admin(request)
+    try:
+        clean_password = validate_admin_password(password)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    with get_connection() as connection:
+        user = connection.execute(
+            "SELECT admin_user_id FROM admin_users WHERE admin_user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Admin user not found.")
+
+        connection.execute(
+            """
+            UPDATE admin_users
+            SET password_hash = ?,
+                session_token_hash = NULL,
+                session_expires_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE admin_user_id = ?
+            """,
+            (hash_admin_password(clean_password), user_id),
+        )
+
+    return RedirectResponse("/admin/users?status=reset", status_code=303)
+
+
+@router.post("/users/{user_id}/remove")
+async def remove_admin_user(request: Request, user_id: int):
+    admin_user = require_super_admin(request)
+    if user_id == admin_user["admin_user_id"]:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot remove your own account.",
+        )
+
+    with get_connection() as connection:
+        connection.execute("LOCK TABLE admin_users IN EXCLUSIVE MODE")
+        target = connection.execute(
+            "SELECT role, is_active FROM admin_users WHERE admin_user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="Admin user not found.")
+
+        if target["role"] == "super_admin" and target["is_active"]:
+            active_super_admins = connection.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM admin_users
+                WHERE role = 'super_admin' AND is_active = TRUE
+                """
+            ).fetchone()["total"]
+            if active_super_admins <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The last active Super Admin cannot be removed.",
+                )
+
+        connection.execute(
+            "DELETE FROM admin_users WHERE admin_user_id = ?",
+            (user_id,),
+        )
+
+    return RedirectResponse("/admin/users?status=removed", status_code=303)
+
+
+@router.get("/password", name="admin_change_password")
+async def change_admin_password_page(request: Request):
+    admin_user = require_admin(request)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_password.html",
+        context={"admin_user": admin_user, "error": None},
+    )
+
+
+@router.post("/password")
+async def change_admin_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    admin_user = require_admin(request)
+    try:
+        clean_new_password = validate_admin_password(new_password)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    with get_connection() as connection:
+        user = connection.execute(
+            """
+            SELECT password_hash
+            FROM admin_users
+            WHERE admin_user_id = ? AND is_active = TRUE
+            """,
+            (admin_user["admin_user_id"],),
+        ).fetchone()
+        if not user or not verify_admin_password(
+            current_password,
+            user["password_hash"],
+        ):
+            return templates.TemplateResponse(
+                request=request,
+                name="admin_password.html",
+                context={
+                    "admin_user": admin_user,
+                    "error": "Current password is incorrect.",
+                },
+                status_code=400,
+            )
+
+        if new_password != confirm_password:
+            return templates.TemplateResponse(
+                request=request,
+                name="admin_password.html",
+                context={
+                    "admin_user": admin_user,
+                    "error": "New password and confirmation do not match.",
+                },
+                status_code=400,
+            )
+
+        connection.execute(
+            """
+            UPDATE admin_users
+            SET password_hash = ?,
+                session_token_hash = NULL,
+                session_expires_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE admin_user_id = ?
+            """,
+            (hash_admin_password(clean_new_password), admin_user["admin_user_id"]),
+        )
+
+    response = RedirectResponse("/admin/login?changed=1", status_code=303)
+    response.delete_cookie(ADMIN_COOKIE)
     return response
 
 

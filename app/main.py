@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.db.database import initialize_database, get_connection
 from app.routers import admin, auth, cart, checkout, home, products
@@ -85,6 +85,14 @@ app.mount(
     StaticFiles(directory=STATIC_DIR),
     name="static",
 )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(
+        STATIC_DIR / "uploads" / "items" / "banner" / "logo.ico",
+        media_type="image/x-icon",
+    )
 
 
 app.include_router(home.router)
