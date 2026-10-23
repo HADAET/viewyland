@@ -84,11 +84,12 @@
             <div class="cart-grand-total"><span>Total</span><strong data-cart-total data-currency="{{ lines[0].product.currency }}">Select area to calculate total</strong></div>
           </div>
           <div class="cart-summary-actions">
-            <a class="button button-light" href="/products">Continue shopping <span>&rarr;</span></a>
+           <!-- <a class="button button-light" href="/products">Continue shopping <span>&rarr;</span></a>
             {% if buy_now_item_no %}
               <button class="button button-light" type="button" data-add-buy-now="{{ buy_now_item_no }}" data-quantity="{{ lines[0].quantity }}">Add to Cart instead</button>
             {% endif %}
-            <button class="button button-dark" type="button" data-confirm-open disabled>Continue to checkout <span>&rarr;</span></button>
+          -->
+            <button class="button button-dark" type="button" data-confirm-open disabled>Continue to Order <span>&rarr;</span></button>
           </div>
           <p class="order-message" data-buy-now-message role="status" aria-live="polite"></p>
         </div>
